@@ -1,0 +1,33 @@
+Introduction to Documentation
+
+Role
+• - Ensure clear and maintainable project
+documentation
+• - Follow IEEE SRS standards for requirements
+• - Keep track of project progress and decisions
+• - Support developers and stakeholders with
+structured documentation
+
+
+
+Overview of Documentation Needs
+• - Software Requirements Specification (SRS)
+• - API Documentation
+• - User Documentation
+• - Project Logs & Meeting Notes
+
+
+
+Information Needed from Team
+• - Project Scope and Objectives
+• - Technology Stack (Frameworks, APIs,Hosting)
+• - Key Features & Use Cases
+• - Constraints & Dependencies
+
+
+Next Steps
+• - Assign documentation responsibilities
+• - Set up a shared documentation platform
+(Google Docs, Confluence, GitHub Wiki)
+• - Define a timeline for drafts and approvals
+• - Regular updates and feedback loops
