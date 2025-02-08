@@ -1,21 +1,11 @@
-import os # Importing the os module to access environment variables
-from flask import Flask # Importing Flask framework to create a web application
+import streamlit as st
 
+st.title("Chatbot Web App")
+st.write("Hello, this is my chatbot!")
 
-# Initializing the Flask application
+# Input field for user message
+user_input = st.text_input("Type your message:")
 
-app = Flask(__name__)
+if st.button("Send"):
+    st.write(f"Chatbot response: {user_input}")  # Replace with actual chatbot logic
 
-# Defining a route for the root URL ("/")
-@app.route("/")
-def main():
-    return 'Hello World!\n--Team 3' # Returning a simple response
-
-# Running the application
-if __name__ == "__main__":
-     # Setting the port from environment variable or defaulting to 2503
-    port = int(os.environ.get("PORT", 2503))
-
-    # Starting the Flask application with debugging enabled
-    # Listening on all network interfaces (0.0.0.0) for accessibility
-    app.run(debug=True,host='0.0.0.0',port=port)

@@ -1,5 +1,3 @@
-flask
 jupyter
 streamlit
-milvus
-docker
+
