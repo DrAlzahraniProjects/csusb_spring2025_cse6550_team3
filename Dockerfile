@@ -19,5 +19,8 @@ COPY app.py /app/app.py
 # Expose Streamlit's default port
 EXPOSE 8501
 
+# Install required dependencies
+RUN pip install torch transformers accelerate sentencepiece llama-cpp-python streamlit
+
 # Run Streamlit app
 CMD ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]
