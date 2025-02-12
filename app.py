@@ -1,32 +1,45 @@
-from langchain.llms import OpenAI
-from langchain.schema import AIMessage, HumanMessage, SystemMessage
 import os
+import gdown
+from transformers import AutoModelForCausalLM, AutoTokenizer
+import torch
 
-# Set your OpenAI API key (make sure to replace it with your own API key)
-os.environ["OPENAI_API_KEY"] = "your_openai_api_key_here"  # Replace with your OpenAI API key
+# 1. Download the .gguf file from Google Drive
+# Replace with your Google Drive link (after extracting the file ID)
+file_url = 'https://drive.google.com/uc?id=YOUR_FILE_ID'  # Replace YOUR_FILE_ID with the actual file ID
+output_path = 'my_model.gguf'
 
-# Initialize OpenAI model (no need to use any Hugging Face or other models)
-llm = OpenAI(model_name="gpt-3.5-turbo")  # Or "gpt-4" for GPT-4
+gdown.download(file_url, output_path, quiet=False)
 
-# Chat history initialization
-messages = [SystemMessage(content="You are a helpful assistant.")]
+# 2. Load the tokenizer and model from the local .gguf file
+# Assuming you have a Hugging Face-compatible model architecture
+# You can replace the 'AutoModelForCausalLM' with the model class that matches your .gguf file.
 
+# Define the path to your downloaded model (this could be your local directory if you downloaded the model manually)
+model_directory = './'  # Where the .gguf model file is saved
+
+# Initialize model and tokenizer (customize as per your model architecture)
+# If your model uses specific layers, you may need to adjust the tokenizer and model loading.
+
+tokenizer = AutoTokenizer.from_pretrained(model_directory)
+model = AutoModelForCausalLM.from_pretrained(model_directory)
+
+# 3. Set up the chatbot
 print("Chatbot ready! Type 'exit' to quit.")
 
-# Main loop for chat
 while True:
     user_input = input("You: ")
     if user_input.lower() == "exit":
         print("Goodbye!")
         break
 
-    # Append user message to chat history
-    messages.append(HumanMessage(content=user_input))
+    # Tokenize input
+    inputs = tokenizer(user_input, return_tensors="pt")
 
-    # Get the model's response based on chat history
-    response = llm(messages)
+    # Generate a response from the model
+    with torch.no_grad():
+        outputs = model.generate(**inputs, max_length=150, num_return_sequences=1)
 
-    print("Bot:", response.content)
+    # Decode the response
+    bot_output = tokenizer.decode(outputs[0], skip_special_tokens=True)
 
-    # Append model's response to chat history for context
-    messages.append(AIMessage(content=response.content))
+    print(f"Bot: {bot_output}")
