@@ -1,29 +1,21 @@
-from langchain.llms import OpenAI
-from langchain.chat_models import ChatOpenAI
-from langchain.schema import AIMessage, HumanMessage, SystemMessage
-import os
+import os # Importing the os module to access environment variables
+from flask import Flask # Importing Flask framework to create a web application
 
-# Set your API key (use environment variables in production)
-os.environ["OPENAI_API_KEY"] = "your_openai_api_key_here"
 
-# Initialize the LLM model
-llm = ChatOpenAI(model_name="gpt-3.5-turbo")  # or gpt-4
+# Initializing the Flask application
 
-# Chat history
-messages = [SystemMessage(content="You are a helpful assistant.")]
+app = Flask(__name__)
 
-print("Chatbot ready! Type 'exit' to quit.")
+# Defining a route for the root URL ("/")
+@app.route("/")
+def main():
+    return 'Hello World!\n--Team 3' # Returning a simple response
 
-while True:
-    user_input = input("You: ")
-    if user_input.lower() == "exit":
-        print("Goodbye!")
-        break
+# Running the application
+if __name__ == "__main__":
+     # Setting the port from environment variable or defaulting to 2503
+    port = int(os.environ.get("PORT", 2503))
 
-    messages.append(HumanMessage(content=user_input))
-
-    response = llm(messages)
-    print("Bot:", response.content)
-
-    messages.append(AIMessage(content=response.content))
-
+    # Starting the Flask application with debugging enabled
+    # Listening on all network interfaces (0.0.0.0) for accessibility
+    app.run(debug=True,host='0.0.0.0',port=port)
