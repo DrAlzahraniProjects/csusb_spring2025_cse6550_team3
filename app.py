@@ -5,7 +5,7 @@ import torch
 
 # 1. Download the .gguf file from Google Drive
 # Replace with your Google Drive link (after extracting the file ID)
-file_url = 'https://drive.google.com/uc?id=YOUR_FILE_ID'  # Replace YOUR_FILE_ID with the actual file ID
+file_url = 'https://drive.google.com/uc?id=132wcY2EADKUW2XDkKNKXnNGf5V9CgPwV'  # Replace YOUR_FILE_ID with the actual file ID
 output_path = 'my_model.gguf'
 
 gdown.download(file_url, output_path, quiet=False)
