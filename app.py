@@ -2,10 +2,10 @@ from langchain.llms import OpenAI
 from langchain.schema import AIMessage, HumanMessage, SystemMessage
 import os
 
-# Set your OpenAI API key (ensure the correct key is used)
-os.environ["OPENAI_API_KEY"] = "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"  # Replace with your OpenAI API key
+# Set your OpenAI API key (make sure to replace it with your own API key)
+os.environ["OPENAI_API_KEY"] = "your_openai_api_key_here"  # Replace with your OpenAI API key
 
-# Initialize OpenAI model (ensure that this only uses OpenAI)
+# Initialize OpenAI model (no need to use any Hugging Face or other models)
 llm = OpenAI(model_name="gpt-3.5-turbo")  # Or "gpt-4" for GPT-4
 
 # Chat history initialization
