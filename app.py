@@ -1,38 +1,32 @@
-import os
-import streamlit as st
 from langchain.llms import OpenAI
-from langchain.chat_models import ChatOpenAI
 from langchain.schema import AIMessage, HumanMessage, SystemMessage
+import os
 
-# Set your OpenAI API key (or use environment variable for security)
-os.environ["OPENAI_API_KEY"] = "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"  # Set your OpenAI API key
+# Set your OpenAI API key (ensure the correct key is used)
+os.environ["OPENAI_API_KEY"] = "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"  # Replace with your OpenAI API key
 
-# Initialize the LLM model
-llm = ChatOpenAI(model_name="gpt-3.5-turbo")  # or gpt-4
+# Initialize OpenAI model (ensure that this only uses OpenAI)
+llm = OpenAI(model_name="gpt-3.5-turbo")  # Or "gpt-4" for GPT-4
 
-# Initialize chat history
+# Chat history initialization
 messages = [SystemMessage(content="You are a helpful assistant.")]
 
-# Streamlit app layout
-st.title("Chatbot with LangChain")
-st.write("Type your message and the chatbot will respond!")
+print("Chatbot ready! Type 'exit' to quit.")
 
-# Input box for the user to type their message
-user_input = st.text_input("You: ", "")
+# Main loop for chat
+while True:
+    user_input = input("You: ")
+    if user_input.lower() == "exit":
+        print("Goodbye!")
+        break
 
-# If user provides input
-if user_input:
-    # Add user's input to the chat history
+    # Append user message to chat history
     messages.append(HumanMessage(content=user_input))
 
-    # Get the response from the LLM
+    # Get the model's response based on chat history
     response = llm(messages)
 
-    # Add the bot's response to the chat history
+    print("Bot:", response.content)
+
+    # Append model's response to chat history for context
     messages.append(AIMessage(content=response.content))
-
-    # Display the bot's response
-    st.write(f"Bot: {response.content}")
-else:
-    st.write("Please type something to start the conversation.")
-
