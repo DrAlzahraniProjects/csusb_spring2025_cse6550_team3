@@ -8,7 +8,7 @@ from langchain.schema import AIMessage, HumanMessage, SystemMessage
 app = Flask(__name__)
 
 # Set your OpenAI API key (or use environment variable for security)
-os.environ["OPENAI_API_KEY"] = "your_openai_api_key_here"  # Set your OpenAI API key
+os.environ["OPENAI_API_KEY"] = "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"  # Set your OpenAI API key
 
 # Initialize the LLM model
 llm = ChatOpenAI(model_name="gpt-3.5-turbo")  # or gpt-4
