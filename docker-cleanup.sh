@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Define container name
-CONTAINER_NAME="chatbot-app"
+CONTAINER_NAME="team3s25"
 
 # Stop the running container
 echo "Stopping Docker container..."
