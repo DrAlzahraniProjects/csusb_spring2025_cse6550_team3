@@ -29,7 +29,10 @@ chmod +x docker-setup.sh
 ```
 6) Follow the following links to access the app:  
 App - http://127.0.0.1:2503/  
-Jupyter - http://127.0.0.1:2513/  
+Jupyter - http://127.0.0.1:2513/
+
+Alternatively, it can be accessed via the CSE department web server:
+https://sec.cse.csusb.edu/team13
 
 ### To stop the container from running and remove the container and image:
 7) Enable execute permissions for the Docker cleanup script::
