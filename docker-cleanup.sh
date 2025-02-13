@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Define container name
-CONTAINER_NAME="team3s25"
+CONTAINER_NAME="team3s25-app"
 
 # Stop the running container
 echo "Stopping Docker container..."
