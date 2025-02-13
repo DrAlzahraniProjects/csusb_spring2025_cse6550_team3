@@ -2,7 +2,9 @@
 Install the following before you begin:  
    [Git](https://git-scm.com/)  
    [Docker](https://www.docker.com/)  
-   [WSL](https://learn.microsoft.com/en-us/windows/wsl/install)
+   [WSL](https://learn.microsoft.com/en-us/windows/wsl/install)  
+  
+You must have a [Groq API Key](https://console.groq.com/keys) to run the app.
 
 ## To create a simple, Dockerized web application:
 1) Clone this GitHub repository
@@ -21,7 +23,7 @@ git pull origin main
 ```
 chmod +x docker-setup.sh
 ```
-5) Run the script to build and run the Docker image:
+5) Run the script to build and run the Docker image (enter your Groq API Key when prompted):
 ```
 ./docker-setup.sh
 ```
