@@ -1,42 +1,29 @@
-import os
-from transformers import AutoModelForCausalLM, AutoTokenizer
-
-# Set your Hugging Face model name
-model_name = "meta-llama/Llama-2-7b-chat-hf"  # Use your model here if different
-
-# Load model and tokenizer
-model = AutoModelForCausalLM.from_pretrained(model_name)
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-
-# Move the model to CPU (since no GPU is available on your Mac)
-model = model.to("cpu")  # Force the model to use the CPU
-
-# Function to get chatbot response
-def get_chatbot_response(prompt):
-    # Tokenize the input prompt
-    inputs = tokenizer(prompt, return_tensors="pt")
-    
-    # Generate a response from the model
-    outputs = model.generate(**inputs)
-    
-    # Decode the generated output to a string
-    response = tokenizer.decode(outputs[0], skip_special_tokens=True)
-    return response
-
-# Streamlit interface to interact with the chatbot
 import streamlit as st
+from langchain.chat_models import init_chat_model
+from langchain.schema import SystemMessage, HumanMessage, AIMessage
+import os
 
-# Set the page title for the Streamlit app
-st.title("LLaMA Chatbot")
+# Set up the chatbot
+api_key = os.getenv("GROQ_API_KEY")
+if not api_key:
+    st.error("Error: Please set your OPENAI_API_KEY environment variable.")
+    st.stop()
 
-# Add a text box for user input
-user_input = st.text_input("You:", "")
+chat = init_chat_model("llama3-8b-8192", model_provider="groq")
+messages = [SystemMessage(content="You are a helpful AI assistant.")]
 
-# Generate and display response
-if user_input:
-    chatbot_response = get_chatbot_response(user_input)
-    st.write(f"Bot: {chatbot_response}")
+st.title("Chatbot Web App")
+st.write("Hello, this is my chatbot!")
 
-# Running the Streamlit app
-if __name__ == "__main__":
-    st.write("Chatbot is ready! Type your message.")
+# Input field for user message
+user_input = st.text_input("Type your message:")
+
+if st.button("Send"):
+    if user_input:
+        messages.append(HumanMessage(content=user_input))
+        response = chat.invoke(messages)
+        ai_message = AIMessage(content=response.content)
+        messages.append(ai_message)
+        st.write(f"Chatbot response: {response.content}")
+    else:
+        st.warning("Please enter a message before sending.")
