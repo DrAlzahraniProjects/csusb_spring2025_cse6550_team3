@@ -2,6 +2,7 @@
 Install the following before you begin:  
    [Git](https://git-scm.com/)  
    [Docker](https://www.docker.com/)  
+   [WSL](https://learn.microsoft.com/en-us/windows/wsl/install)
 
 ## To create a simple, Dockerized web application:
 1) Clone this GitHub repository
@@ -26,8 +27,7 @@ chmod +x docker-setup.sh
 ```
 6) Follow the following links to access the app:  
 App - http://127.0.0.1:2503/  
-Jupyter - http://127.0.0.1:8888/  
-   *For now, the token required for Jupyter is: token*
+Jupyter - http://127.0.0.1:2513/  
 
 ### To stop the container from running and remove the container and image:
 7) Enable execute permissions for the Docker cleanup script::
