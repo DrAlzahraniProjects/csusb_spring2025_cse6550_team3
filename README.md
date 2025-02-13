@@ -16,15 +16,25 @@ cd csusb_spring2025_cse6550_team3
 ```
 git pull origin main
 ```
-4) Build the docker image
+4) Enable execute permissions for the Docker setup script:
 ```
-docker build -t team3s25-app .
+chmod +x docker-setup.sh
 ```
-5) Run the docker image
+5) Run the script to build and run the Docker image:
 ```
-docker run -d -p 2503:2503 -p 8888:8888 team3s25-app
+./docker-setup.sh
 ```
 6) Follow the following links to access the app:  
 App - http://127.0.0.1:2503/  
 Jupyter - http://127.0.0.1:8888/  
    *For now, the token required for Jupyter is: token*
+
+### To stop the container from running and remove the container and image:
+7) Enable execute permissions for the Docker cleanup script::
+```
+chmod +x docker-cleanup.sh
+```
+8) Run the script to stop and remove the Docker image:
+```
+./docker-cleanup.sh
+```
