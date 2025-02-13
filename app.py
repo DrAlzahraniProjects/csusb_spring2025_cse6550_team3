@@ -1,21 +1,29 @@
-import os # Importing the os module to access environment variables
-from flask import Flask # Importing Flask framework to create a web application
+import streamlit as st
+from langchain.chat_models import init_chat_model
+from langchain.schema import SystemMessage, HumanMessage, AIMessage
+import os
 
+# Set up the chatbot
+api_key = os.getenv("GROQ_API_KEY")
+if not api_key:
+    st.error("Error: Please set your OPENAI_API_KEY environment variable.")
+    st.stop()
 
-# Initializing the Flask application
+chat = init_chat_model("llama3-8b-8192", model_provider="groq")
+messages = [SystemMessage(content="You are a helpful AI assistant.")]
 
-app = Flask(__name__)
+st.title("Chatbot Web App")
+st.write("Hello, this is my chatbot!")
 
-# Defining a route for the root URL ("/")
-@app.route("/")
-def main():
-    return 'Hello World!\n--Team 3' # Returning a simple response
+# Input field for user message
+user_input = st.text_input("Type your message:")
 
-# Running the application
-if __name__ == "__main__":
-     # Setting the port from environment variable or defaulting to 2503
-    port = int(os.environ.get("PORT", 2503))
-
-    # Starting the Flask application with debugging enabled
-    # Listening on all network interfaces (0.0.0.0) for accessibility
-    app.run(debug=True,host='0.0.0.0',port=port)
+if st.button("Send"):
+    if user_input:
+        messages.append(HumanMessage(content=user_input))
+        response = chat.invoke(messages)
+        ai_message = AIMessage(content=response.content)
+        messages.append(ai_message)
+        st.write(f"Chatbot response: {response.content}")
+    else:
+        st.warning("Please enter a message before sending.")

@@ -1,5 +1,4 @@
-flask
 jupyter
 streamlit
-milvus
-docker
+langchain.core
+langchain[groq]
