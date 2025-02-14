@@ -14,7 +14,7 @@ chat = init_chat_model("llama3-8b-8192", model_provider="groq")
 
 # 💬 Store conversation in session state
 if "messages" not in st.session_state:
-    st.session_state.messages = [SystemMessage(content="You are a helpful AI assistant.")]
+    st.session_state.messages = [SystemMessage(content="Hey I'm csusb chatbot, You can ask questions about csusb.")]
 
 # 🎨 Custom CSS for a light, clean UI in blue/white/gray
 st.markdown(
