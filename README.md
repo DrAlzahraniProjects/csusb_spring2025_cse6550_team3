@@ -4,7 +4,8 @@ Install the following before you begin:
    [Docker](https://www.docker.com/)  
    [WSL](https://learn.microsoft.com/en-us/windows/wsl/install)  
   
-You must have a [Groq API Key](https://console.groq.com/keys) to run the app.
+You must have a [Groq API Key](https://console.groq.com/keys) to run the app.  
+If you do not have one, it can be obtained from the Team 3 Discussion on Canvas.  
 
 ## To create a simple, Dockerized web application:
 1) Clone this GitHub repository
