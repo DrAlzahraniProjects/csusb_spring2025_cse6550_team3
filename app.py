@@ -17,7 +17,7 @@ chat = init_chat_model("llama3-8b-8192", model_provider="groq")
 # 3. Initialize Session State
 if "messages" not in st.session_state:
     st.session_state.messages = [
-        SystemMessage(content="Hey, I'm CSUSB Chatbot. Feel free to ask me anything about CSUSB.")
+        SystemMessage(content="Hey, I'm an AI research helper. Feel free to ask me anything about AI research.")
     ]
 if "conf_matrix" not in st.session_state:
     st.session_state.conf_matrix = np.zeros((2, 2), dtype=int)
@@ -120,8 +120,8 @@ st.markdown(
 
 # 5. Page Layout
 st.markdown('<div class="chat-container">', unsafe_allow_html=True)
-st.markdown("<h2 class='title'>TEAM3 Chatbot - CSUSB</h2>", unsafe_allow_html=True)
-st.markdown("<p class='subtitle'>Welcome! Ask me anything, and I'll do my best to assist you.</p>", unsafe_allow_html=True)
+st.markdown("<h2 class='title'>TEAM3 Chatbot - AI Research Helper</h2>", unsafe_allow_html=True)
+st.markdown("<p class='subtitle'>Welcome! Ask me about AI research, and I'll do my best to assist you.</p>", unsafe_allow_html=True)
 
 # 6. Display Chat Messages
 for message in st.session_state.messages:
