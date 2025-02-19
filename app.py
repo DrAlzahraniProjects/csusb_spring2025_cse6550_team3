@@ -154,4 +154,21 @@ if user_input:
 
 st.markdown('</div>', unsafe_allow_html=True)  # Close container
 
+# 5 answerable questions by our chatbot - 
+
+# 1. What is the github link of the dataset used in the research paper Fashion-MNIST: a Novel Image Dataset for Benchmarking Machine Learning Algorithms? 
+# 2. Which dataset was used by 'Brain Tumor Segmentation with Deep Neural Networks' paper?
+# 3. Who are the authors for the paper 'Deep Residual Learning for Image Recognition'?
+# 4. When was the paper 'U-Net: Convolutional Networks for Biomedical Image Segmentation' published?
+# 5. What are the five histologic patterns of non-mucinous lung adenocarcinoma?
+
+
+# 5 unanswerable questions by our chatbot - 
+
+# 1. What is the complete list of references for the paper YOLOv3: An Incremental Improvement?
+# 2. Who are the authors of the paper - Knowledge Transfer for Melanoma Screening with Deep Learning ?
+# 3. When was the paper 'Skin Lesion Synthesis with Generative Adversarial Networks' published?
+# 4. In the paper 'MED3D: TRANSFER LEARNING FOR 3D MEDICAL IMAGE ANALYSIS', what dice coefficient was achieved?
+# 5. Which dataset was used in the paper 'V-Net: Fully Convolutional Neural Networks for Volumetric Medical Image Segmentation' ?
+
 
