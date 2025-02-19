@@ -14,7 +14,7 @@ chat = init_chat_model("llama3-8b-8192", model_provider="groq")
 
 # 💬 Store conversation in session state
 if "messages" not in st.session_state:
-    st.session_state.messages = [SystemMessage(content="Hey I'm csusb chatbot, You can ask questions about csusb.")]
+    st.session_state.messages = [SystemMessage(content="Hey I'm an AI research helper, You can ask questions about AI research.")]
 
 # 🎨 Custom CSS for a light, clean UI in blue/white/gray
 st.markdown(
@@ -123,7 +123,7 @@ st.markdown(
 st.markdown('<div class="chat-container">', unsafe_allow_html=True)
 
 # 🏷️ Title & Subtitle
-st.markdown('<h2 class="title">TEAM3 Chatbot - CSUSB</h2>', unsafe_allow_html=True)
+st.markdown('<h2 class="title">TEAM3 Chatbot - AI Research Helper</h2>', unsafe_allow_html=True)
 st.markdown('<p class="subtitle">Welcome! Ask me anything, and I\'ll do my best to assist you.</p>', unsafe_allow_html=True)
 
 # 💬 Display chat messages
