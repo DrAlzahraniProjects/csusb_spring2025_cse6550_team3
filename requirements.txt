@@ -1,7 +1,9 @@
 jupyter
 streamlit
-langchain.core
+langchain
 langchain[groq]
+pandas  # If you use pandas for confusion matrix or performance metrics calculations
 PyPDF2
 langchain-huggingface
 pymilvus
+
