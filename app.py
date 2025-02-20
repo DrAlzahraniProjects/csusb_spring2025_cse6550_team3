@@ -1,3 +1,26 @@
+# # Jupyter Notebook Documentation for `app.py`
+# 
+# ## **Overview**
+# This script sets up a **Streamlit chatbot web app** that uses **LangChain** and the **Llama 3 (8B) model from Groq** 
+# to provide AI-powered interactions.
+
+# ## **Dependencies**
+# Ensure you have the required Python libraries installed before running the script:
+# ```
+# pip install streamlit langchain groq
+# ```
+
+# ## **Environment Variable**
+# Before running the chatbot, set your `GROQ_API_KEY` environment variable:
+# ```bash
+# export GROQ_API_KEY="your_api_key_here"  # Linux/macOS
+# set GROQ_API_KEY="your_api_key_here"  # Windows (CMD)
+# $env:GROQ_API_KEY="your_api_key_here"  # Windows (PowerShell)
+# ```
+
+# ## **Code Breakdown**
+
+# ### **1. Import Required Modules**
 import streamlit as st
 import numpy as np
 import pandas as pd
@@ -205,9 +228,4 @@ if st.sidebar.button("Reset Confusion Matrix"):
 # 3. When was the paper 'Skin Lesion Synthesis with Generative Adversarial Networks' published?
 # 4. In the paper 'MED3D: TRANSFER LEARNING FOR 3D MEDICAL IMAGE ANALYSIS', what dice coefficient was achieved?
 # 5. Which dataset was used in the paper 'V-Net: Fully Convolutional Neural Networks for Volumetric Medical Image Segmentation' ?
-
-
-
-
-
 
