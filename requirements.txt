@@ -2,3 +2,6 @@ jupyter
 streamlit
 langchain.core
 langchain[groq]
+PyPDF2
+langchain-huggingface
+pymilvus
