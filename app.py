@@ -146,6 +146,7 @@ st.markdown('<div class="chat-container">', unsafe_allow_html=True)
 st.markdown("<h2 class='title'>TEAM3 Chatbot - AI Research Helper</h2>", unsafe_allow_html=True)
 st.markdown("<p class='subtitle'>Welcome! Ask me about AI research, and I'll do my best to assist you.</p>", unsafe_allow_html=True)
 
+
 # 6. Display Chat Messages
 for message in st.session_state.messages:
     role = "user" if isinstance(message, HumanMessage) else "assistant"
