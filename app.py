@@ -146,6 +146,22 @@ st.markdown('<div class="chat-container">', unsafe_allow_html=True)
 st.markdown("<h2 class='title'>TEAM3 Chatbot - AI Research Helper</h2>", unsafe_allow_html=True)
 st.markdown("<p class='subtitle'>Welcome! Ask me about AI research, and I'll do my best to assist you.</p>", unsafe_allow_html=True)
 
+# Path to the output file in the mounted volume
+output_file_path = "/data/output.csv" 
+
+# Read the file
+try:
+    data = pd.read_csv(output_file_path)  # Read the CSV file into a DataFrame
+    st.write(data.iloc[0])  # Display the first row
+except FileNotFoundError:
+    st.write("file not found")
+except pd.errors.EmptyDataError:
+    st.write("empty data error")
+except pd.errors.ParserError:
+    st.write("parse error")
+except Exception as e:
+    st.write("file error")
+
 
 # 6. Display Chat Messages
 for message in st.session_state.messages:
