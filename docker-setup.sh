@@ -20,7 +20,7 @@ fi
 
 # Run the Docker container
 echo "Running Docker container..."
-docker run -d -p 2503:2503 -p 2513:2513 --name $CONTAINER_NAME -e GROQ_API_KEY="$GROQ_API_KEY" $CONTAINER_NAME
+docker run -d -p 2503:2503 -p 2513:2513 --name $CONTAINER_NAME -e GROQ_API_KEY="$GROQ_API_KEY" -v scrapy_output:/data $CONTAINER_NAME
 
 echo "Docker container is running. Access your services at:"
 echo "- Streamlit: http://localhost:2503"
