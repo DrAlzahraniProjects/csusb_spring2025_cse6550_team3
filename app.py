@@ -195,6 +195,11 @@ FN = st.session_state.conf_matrix[0, 1]
 FP = st.session_state.conf_matrix[1, 0]
 TN = st.session_state.conf_matrix[1, 1]
 
+# True Positive (TP) → The LLM correctly identifies that the question is answerable and provides an answer ("yes" or "no")
+# False Positive (FP) → The LLM incorrectly tries to answer a question that is actually unanswerable
+# True Negative (TN) → The LLM correctly identifies that the question is unanswerable and responds accordingly
+# False Negative (FN) → The LLM fails to answer a question that is actually answerable
+
 sensitivity = TP / (TP + FN) if (TP + FN) else 0
 specificity = TN / (TN + FP) if (TN + FP) else 0
 accuracy = (TP + TN) / np.sum(st.session_state.conf_matrix) if np.sum(st.session_state.conf_matrix) else 0
