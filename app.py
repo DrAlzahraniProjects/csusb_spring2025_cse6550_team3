@@ -185,8 +185,8 @@ st.markdown("</div>", unsafe_allow_html=True)
 st.sidebar.write("### Confusion Matrix")
 cm_df = pd.DataFrame(
     st.session_state.conf_matrix,
-    index=["Actual +", "Actual -"],
-    columns=["Predicted +", "Predicted -"]
+    index=["True answerable (Yes/No)", "True unanswerable"],
+    columns=["LLM: Answerable (Yes/No)", "LLM: Unanswerable"]
 )
 st.sidebar.table(cm_df)
 
