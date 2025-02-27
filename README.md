@@ -1,3 +1,7 @@
+# AI Research Helper Chatbot
+## Project Overview
+This AI Research Helper Chatbot is a Streamlit-based chatbot designed to assist researchers and students in finding relevant AI-related research papers, summarizing key concepts, and answering AI-related queries. It leverages LLM-based responses and retrieval-augmented generation (RAG) techniques to provide accurate and context-aware information.
+
 ## Prerequisites
 Install the following before you begin:  
    [Git](https://git-scm.com/)  
