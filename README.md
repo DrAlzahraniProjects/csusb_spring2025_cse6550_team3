@@ -33,8 +33,8 @@ chmod +x docker-setup.sh
 ./docker-setup.sh
 ```
 6) Follow the following links to access the app:  
-App - http://127.0.0.1:2503/  
-Jupyter - http://127.0.0.1:2513/
+App - http://127.0.0.1:2503/team3s25  
+Jupyter - http://127.0.0.1:2513/team3s25/jupyter
 
 Alternatively, it can be accessed via the CSE department web server:
 https://sec.cse.csusb.edu/team13
