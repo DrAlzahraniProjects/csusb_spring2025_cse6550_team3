@@ -21,4 +21,4 @@ EXPOSE 2503
 EXPOSE 2513
 
 # Start both Streamlit and Jupyter Notebook
-CMD ["bash", "-c", "python3 go-spider.py & streamlit run app.py --server.port=2503 --server.address=0.0.0.0 & jupyter notebook --ip=0.0.0.0 --port=2513 --no-browser --NotebookApp.token='' --allow-root"]
+CMD ["bash", "-c", "streamlit run app.py --server.port=2503 --server.address=0.0.0.0 & jupyter notebook --ip=0.0.0.0 --port=2513 --no-browser --NotebookApp.token='' --allow-root"]
