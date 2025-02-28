@@ -27,8 +27,8 @@ import pandas as pd
 import os
 from langchain.chat_models import init_chat_model
 from langchain.schema import SystemMessage, HumanMessage, AIMessage
-import faiss
-from sentence_transformers import SentenceTransformer
+# import faiss
+# from sentence_transformers import SentenceTransformer
 
 # 1. Check for API Key
 api_key = os.getenv("GROQ_API_KEY")
@@ -148,38 +148,38 @@ st.markdown('<div class="chat-container">', unsafe_allow_html=True)
 st.markdown("<h2 class='title'>TEAM3 Chatbot - AI Research Helper</h2>", unsafe_allow_html=True)
 st.markdown("<p class='subtitle'>Welcome! Ask me about AI research, and I'll do my best to assist you.</p>", unsafe_allow_html=True)
 
-# Path to the output file in the mounted volume
-output_file_path = "/data/output.csv" 
+# # Path to the output file in the mounted volume
+# output_file_path = "/data/output.csv" 
 
-df = pd.read_csv(output_file_path)
+# df = pd.read_csv(output_file_path)
 
-# Ensure the CSV file has a column named 'text'
-if 'text' not in df.columns:
-    raise ValueError("CSV file must have a 'text' column")
+# # Ensure the CSV file has a column named 'text'
+# if 'text' not in df.columns:
+#     raise ValueError("CSV file must have a 'text' column")
 
-# Extract sentences from the CSV file
-sentences = df['text'].tolist()
+# # Extract sentences from the CSV file
+# sentences = df['text'].tolist()
 
-# Load a pre-trained sentence embedding model
-model = SentenceTransformer('all-MiniLM-L6-v2')  # You can choose any model you prefer
+# # Load a pre-trained sentence embedding model
+# model = SentenceTransformer('all-MiniLM-L6-v2')  # You can choose any model you prefer
 
-# Generate embeddings for the sentences
-embeddings = model.encode(sentences).astype('float32')
+# # Generate embeddings for the sentences
+# embeddings = model.encode(sentences).astype('float32')
 
-# Create a FAISS index
-index = faiss.IndexFlatL2(embeddings.shape[1])  # L2 distance
-index.add(embeddings)  # Add embeddings to the index
+# # Create a FAISS index
+# index = faiss.IndexFlatL2(embeddings.shape[1])  # L2 distance
+# index.add(embeddings)  # Add embeddings to the index
 
-def retrieve_similar_sentences(query_sentence, k=1):
-    # Generate embedding for the query sentence
-    query_embedding = model.encode(query_sentence).astype('float32').reshape(1, -1)  # Reshape to 2D array
+# def retrieve_similar_sentences(query_sentence, k=1):
+#     # Generate embedding for the query sentence
+#     query_embedding = model.encode(query_sentence).astype('float32').reshape(1, -1)  # Reshape to 2D array
 
-    # Search the index
-    distances, indices = index.search(query_embedding, k)
+#     # Search the index
+#     distances, indices = index.search(query_embedding, k)
 
-    # Retrieve and return the most similar sentences
-    similar_sentences = [sentences[indices[0][i]] for i in range(k)]
-    return similar_sentences
+#     # Retrieve and return the most similar sentences
+#     similar_sentences = [sentences[indices[0][i]] for i in range(k)]
+#     return similar_sentences
 
 
 # 6. Display Chat Messages
@@ -210,12 +210,13 @@ if user_input:
     st.session_state.messages.append(HumanMessage(content=user_input))
 
     # Retrieve similar sentences based on user input
-    similar_sentences = retrieve_similar_sentences(user_input)
-    context = " ".join(similar_sentences)  # Combine similar sentences for context
+    # similar_sentences = retrieve_similar_sentences(user_input)
+    # context = " ".join(similar_sentences)  # Combine similar sentences for context
 
     with st.spinner("Thinking..."):
         # Create a new list of messages to send to the model, including context
-        messages_to_send = st.session_state.messages + [SystemMessage(content=f"Context: {context}")]
+        # messages_to_send = st.session_state.messages + [SystemMessage(content=f"Context: {context}")]
+        messages_to_send = st.session_state.messages
         response = chat.invoke(messages_to_send)
 
         ai_message = AIMessage(content=response.content)
