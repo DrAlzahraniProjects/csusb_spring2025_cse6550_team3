@@ -277,4 +277,3 @@ if st.sidebar.button("Reset Confusion Matrix"):
 # 3. When was the paper 'Skin Lesion Synthesis with Generative Adversarial Networks' published?
 # 4. In the paper 'MED3D: TRANSFER LEARNING FOR 3D MEDICAL IMAGE ANALYSIS', what dice coefficient was achieved?
 # 5. Which dataset was used in the paper 'V-Net: Fully Convolutional Neural Networks for Volumetric Medical Image Segmentation' ?
-
