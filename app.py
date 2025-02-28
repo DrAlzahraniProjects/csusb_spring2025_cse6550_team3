@@ -1,26 +1,23 @@
-# # Jupyter Notebook Documentation for `app.py`
-# 
-# ## **Overview**
-# This script sets up a **Streamlit chatbot web app** that uses **LangChain** and the **Llama 3 (8B) model from Groq** 
-# to provide AI-powered interactions.
-
-# ## **Dependencies**
+# # Jupyter Notebook Documentation for app.py
+#
+# ## Overview
+# This script sets up a Streamlit chatbot web app that uses LangChain and 
+# the Llama 3 (8B) model from Groq to provide AI-powered interactions.
+#
+# ## Dependencies
 # Ensure you have the required Python libraries installed before running the script:
-# ```
-# pip install streamlit langchain groq
-# ```
+#
+#   pip install streamlit langchain groq
+#
+# ## Environment Variable
+# Before running the chatbot, set your GROQ_API_KEY environment variable:
+#
+#   export GROQ_API_KEY="your_api_key_here"  # Linux/macOS
+#   set GROQ_API_KEY="your_api_key_here"     # Windows (CMD)
+#   $env:GROQ_API_KEY="your_api_key_here"    # Windows (PowerShell)
+#
+# ## Code Breakdown
 
-# ## **Environment Variable**
-# Before running the chatbot, set your `GROQ_API_KEY` environment variable:
-# ```bash
-# export GROQ_API_KEY="your_api_key_here"  # Linux/macOS
-# set GROQ_API_KEY="your_api_key_here"  # Windows (CMD)
-# $env:GROQ_API_KEY="your_api_key_here"  # Windows (PowerShell)
-# ```
-
-# ## **Code Breakdown**
-
-# ### **1. Import Required Modules**
 import streamlit as st
 import numpy as np
 import pandas as pd
@@ -148,39 +145,15 @@ st.markdown('<div class="chat-container">', unsafe_allow_html=True)
 st.markdown("<h2 class='title'>TEAM3 Chatbot - AI Research Helper</h2>", unsafe_allow_html=True)
 st.markdown("<p class='subtitle'>Welcome! Ask me about AI research, and I'll do my best to assist you.</p>", unsafe_allow_html=True)
 
-# # Path to the output file in the mounted volume
+# # (Optional) Example code for reading CSV, building indexes, etc.
 # output_file_path = "/data/output.csv" 
-
 # df = pd.read_csv(output_file_path)
-
-# # Ensure the CSV file has a column named 'text'
-# if 'text' not in df.columns:
-#     raise ValueError("CSV file must have a 'text' column")
-
-# # Extract sentences from the CSV file
 # sentences = df['text'].tolist()
-
-# # Load a pre-trained sentence embedding model
-# model = SentenceTransformer('all-MiniLM-L6-v2')  # You can choose any model you prefer
-
-# # Generate embeddings for the sentences
+# model = SentenceTransformer('all-MiniLM-L6-v2')
 # embeddings = model.encode(sentences).astype('float32')
-
-# # Create a FAISS index
-# index = faiss.IndexFlatL2(embeddings.shape[1])  # L2 distance
-# index.add(embeddings)  # Add embeddings to the index
-
-# def retrieve_similar_sentences(query_sentence, k=1):
-#     # Generate embedding for the query sentence
-#     query_embedding = model.encode(query_sentence).astype('float32').reshape(1, -1)  # Reshape to 2D array
-
-#     # Search the index
-#     distances, indices = index.search(query_embedding, k)
-
-#     # Retrieve and return the most similar sentences
-#     similar_sentences = [sentences[indices[0][i]] for i in range(k)]
-#     return similar_sentences
-
+# index = faiss.IndexFlatL2(embeddings.shape[1])
+# index.add(embeddings)
+# def retrieve_similar_sentences(query_sentence, k=1): ...
 
 # 6. Display Chat Messages
 for message in st.session_state.messages:
@@ -188,44 +161,29 @@ for message in st.session_state.messages:
     with st.chat_message(role):
         st.write(message.content)
 
-# 7. Rating Container (below messages)
-st.write("#### Rate the Latest Chatbot Response")
-rating_area = st.container()
-with rating_area:
-    st.markdown("<div class='rating-container'>", unsafe_allow_html=True)
-    col1, col2 = st.columns([1, 1])
-    with col1:
-        if st.button("Correct ✅", key="correct_btn", help="Mark the last response as Correct"):
-            st.session_state.conf_matrix[0, 0] += 1
-            st.rerun()
-    with col2:
-        if st.button("Incorrect ❌", key="incorrect_btn", help="Mark the last response as Incorrect"):
-            st.session_state.conf_matrix[0, 1] += 1
-            st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
+# 7. (We removed the original rating section from here)
 
 # 8. Chat Input at the Bottom
 user_input = st.chat_input("Type your message here...")
 if user_input:
     st.session_state.messages.append(HumanMessage(content=user_input))
 
-    # Retrieve similar sentences based on user input
+    # For example, retrieve context if needed:
     # similar_sentences = retrieve_similar_sentences(user_input)
-    # context = " ".join(similar_sentences)  # Combine similar sentences for context
+    # context = " ".join(similar_sentences)
+    # messages_to_send = st.session_state.messages + [SystemMessage(content=f"Context: {context}")]
+    # Or simply use:
+    messages_to_send = st.session_state.messages
 
     with st.spinner("Thinking..."):
-        # Create a new list of messages to send to the model, including context
-        # messages_to_send = st.session_state.messages + [SystemMessage(content=f"Context: {context}")]
-        messages_to_send = st.session_state.messages
         response = chat.invoke(messages_to_send)
-
         ai_message = AIMessage(content=response.content)
         st.session_state.messages.append(ai_message)
     st.rerun()
 
 st.markdown("</div>", unsafe_allow_html=True)
 
-# 9. Confusion Matrix & Metrics
+# 9. Confusion Matrix & Metrics (in the sidebar)
 st.sidebar.write("### Confusion Matrix")
 cm_df = pd.DataFrame(
     st.session_state.conf_matrix,
@@ -239,10 +197,11 @@ FN = st.session_state.conf_matrix[0, 1]
 FP = st.session_state.conf_matrix[1, 0]
 TN = st.session_state.conf_matrix[1, 1]
 
-# True Positive (TP) → The LLM correctly identifies that the question is answerable and provides an answer ("yes" or "no")
-# False Positive (FP) → The LLM incorrectly tries to answer a question that is actually unanswerable
-# True Negative (TN) → The LLM correctly identifies that the question is unanswerable and responds accordingly
-# False Negative (FN) → The LLM fails to answer a question that is actually answerable
+# Explanation of confusion matrix categories:
+# TP = LLM correctly identifies the question is answerable
+# FP = LLM incorrectly tries to answer an unanswerable question
+# TN = LLM correctly identifies the question is unanswerable
+# FN = LLM fails to answer a question that is actually answerable
 
 sensitivity = TP / (TP + FN) if (TP + FN) else 0
 specificity = TN / (TN + FP) if (TN + FP) else 0
@@ -262,17 +221,31 @@ if st.sidebar.button("Reset Confusion Matrix"):
     st.session_state.conf_matrix = np.zeros((2, 2), dtype=int)
     st.rerun()
 
-# 5 answerable questions by our chatbot - 
+# 11. Rate the Latest Chatbot Response (moved into sidebar, bottom)
+st.sidebar.write("### Rate the Latest Chatbot Response")
+rating_container = st.sidebar.container()
+with rating_container:
+    st.markdown("<div class='rating-container'>", unsafe_allow_html=True)
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        if st.button("Correct ✅", key="correct_btn", help="Mark the last response as Correct"):
+            st.session_state.conf_matrix[0, 0] += 1
+            st.rerun()
+    with col2:
+        if st.button("Incorrect ❌", key="incorrect_btn", help="Mark the last response as Incorrect"):
+            st.session_state.conf_matrix[0, 1] += 1
+            st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
 
+
+# 5 answerable questions by our chatbot - 
 # 1. What is the github link of the dataset used in the research paper Fashion-MNIST: a Novel Image Dataset for Benchmarking Machine Learning Algorithms? 
 # 2. Which dataset was used by 'Brain Tumor Segmentation with Deep Neural Networks' paper?
 # 3. Who are the authors for the paper 'Deep Residual Learning for Image Recognition'?
 # 4. When was the paper 'U-Net: Convolutional Networks for Biomedical Image Segmentation' published?
 # 5. What are the five histologic patterns of non-mucinous lung adenocarcinoma?
 
-
 # 5 unanswerable questions by our chatbot - 
-
 # 1. What is the complete list of references for the paper YOLOv3: An Incremental Improvement?
 # 2. Who are the authors of the paper - Knowledge Transfer for Melanoma Screening with Deep Learning ?
 # 3. When was the paper 'Skin Lesion Synthesis with Generative Adversarial Networks' published?
