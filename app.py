@@ -24,8 +24,6 @@ import pandas as pd
 import os
 from langchain.chat_models import init_chat_model
 from langchain.schema import SystemMessage, HumanMessage, AIMessage
-# import faiss
-# from sentence_transformers import SentenceTransformer
 
 # 1. Check for API Key
 api_key = os.getenv("GROQ_API_KEY")
@@ -43,8 +41,10 @@ if "messages" not in st.session_state:
     ]
 if "conf_matrix" not in st.session_state:
     st.session_state.conf_matrix = np.zeros((2, 2), dtype=int)
+if "last_ai_response" not in st.session_state:
+    st.session_state.last_ai_response = None
 
-# 4. Apply Custom CSS
+# 4. Apply Custom CSS for Better UI
 st.markdown(
     """
     <style>
@@ -70,71 +70,6 @@ st.markdown(
         margin-bottom: 1.5rem;
         font-size: 1rem;
     }
-    .stChatMessage {
-        background: transparent !important;
-        box-shadow: none !important;
-        padding: 0 !important;
-        margin: 0 !important;
-    }
-    .stChatMessageUser .stMarkdown {
-        background-color: #0078D4;
-        color: #FFFFFF;
-        padding: 8px 12px;
-        border-radius: 8px;
-        display: inline-block;
-        max-width: 80%;
-        margin: 6px 0;
-    }
-    .stChatMessageAssistant .stMarkdown {
-        background-color: #E9ECEF;
-        color: #333333;
-        padding: 8px 12px;
-        border-radius: 8px;
-        display: inline-block;
-        max-width: 80%;
-        margin: 6px 0;
-    }
-    .stTextInput>div>div>input {
-        background-color: #FFFFFF;
-        color: #333333;
-        border: 1px solid #CCCCCC;
-        border-radius: 8px;
-        padding: 10px;
-        font-size: 16px;
-    }
-    /* Make rating buttons look smaller and aligned */
-    .rating-container {
-        display: flex;
-        flex-direction: row;
-        gap: 0.5rem;
-        margin: 1rem 0;
-    }
-    .rating-button {
-        background-color: #0078D4;
-        color: #FFFFFF;
-        font-size: 12px;
-        padding: 0.3rem 1rem;
-        border: none;
-        border-radius: 8px;
-        cursor: pointer;
-        transition: background-color 0.3s;
-    }
-    .rating-button:hover {
-        background-color: #005999;
-    }
-    /* Sidebar Button */
-    .stButton>button {
-        background-color: #0078D4;
-        color: #FFFFFF;
-        font-size: 14px;
-        border-radius: 6px;
-        padding: 0.4rem 1rem;
-        border: none;
-        margin-top: 10px;
-    }
-    .stButton>button:hover {
-        background-color: #005999;
-    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -145,45 +80,52 @@ st.markdown('<div class="chat-container">', unsafe_allow_html=True)
 st.markdown("<h2 class='title'>TEAM3 Chatbot - AI Research Helper</h2>", unsafe_allow_html=True)
 st.markdown("<p class='subtitle'>Welcome! Ask me about AI research, and I'll do my best to assist you.</p>", unsafe_allow_html=True)
 
-# # (Optional) Example code for reading CSV, building indexes, etc.
-# output_file_path = "/data/output.csv" 
-# df = pd.read_csv(output_file_path)
-# sentences = df['text'].tolist()
-# model = SentenceTransformer('all-MiniLM-L6-v2')
-# embeddings = model.encode(sentences).astype('float32')
-# index = faiss.IndexFlatL2(embeddings.shape[1])
-# index.add(embeddings)
-# def retrieve_similar_sentences(query_sentence, k=1): ...
-
 # 6. Display Chat Messages
 for message in st.session_state.messages:
     role = "user" if isinstance(message, HumanMessage) else "assistant"
     with st.chat_message(role):
         st.write(message.content)
 
-# 7. (We removed the original rating section from here)
+# 7. Create Placeholder for Rating Buttons Below Chat Input
+rating_placeholder = st.empty()
 
 # 8. Chat Input at the Bottom
 user_input = st.chat_input("Type your message here...")
+
 if user_input:
     st.session_state.messages.append(HumanMessage(content=user_input))
 
-    # For example, retrieve context if needed:
-    # similar_sentences = retrieve_similar_sentences(user_input)
-    # context = " ".join(similar_sentences)
-    # messages_to_send = st.session_state.messages + [SystemMessage(content=f"Context: {context}")]
-    # Or simply use:
+    # Send messages to AI
     messages_to_send = st.session_state.messages
-
     with st.spinner("Thinking..."):
         response = chat.invoke(messages_to_send)
         ai_message = AIMessage(content=response.content)
         st.session_state.messages.append(ai_message)
+        st.session_state.last_ai_response = ai_message.content  # Store last AI response for rating
+    
     st.rerun()
+
+# 9. Display Rating Buttons Below Chat Input (Dynamically Appearing)
+if st.session_state.last_ai_response:
+    with rating_placeholder:
+        st.markdown("### Rate the AI's Latest Response:")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("✅ Correct", key="correct"):
+                st.session_state.conf_matrix[0, 0] += 1
+                st.session_state.last_ai_response = None  # Hide buttons after rating
+                st.success("Thank you for your feedback!")
+                st.rerun()
+        with col2:
+            if st.button("❌ Incorrect", key="incorrect"):
+                st.session_state.conf_matrix[0, 1] += 1
+                st.session_state.last_ai_response = None  # Hide buttons after rating
+                st.warning("Thank you for your feedback! We will improve.")
+                st.rerun()
 
 st.markdown("</div>", unsafe_allow_html=True)
 
-# 9. Confusion Matrix & Metrics (in the sidebar)
+# 10. Confusion Matrix & Metrics (in the sidebar)
 st.sidebar.write("### Confusion Matrix")
 cm_df = pd.DataFrame(
     st.session_state.conf_matrix,
@@ -197,12 +139,7 @@ FN = st.session_state.conf_matrix[0, 1]
 FP = st.session_state.conf_matrix[1, 0]
 TN = st.session_state.conf_matrix[1, 1]
 
-# Explanation of confusion matrix categories:
-# TP = LLM correctly identifies the question is answerable
-# FP = LLM incorrectly tries to answer an unanswerable question
-# TN = LLM correctly identifies the question is unanswerable
-# FN = LLM fails to answer a question that is actually answerable
-
+# Calculate Metrics
 sensitivity = TP / (TP + FN) if (TP + FN) else 0
 specificity = TN / (TN + FP) if (TN + FP) else 0
 accuracy = (TP + TN) / np.sum(st.session_state.conf_matrix) if np.sum(st.session_state.conf_matrix) else 0
@@ -216,39 +153,8 @@ st.sidebar.write(f"Accuracy: {accuracy:.2f}")
 st.sidebar.write(f"Precision: {precision:.2f}")
 st.sidebar.write(f"F1 Score: {f1_score:.2f}")
 
-# 10. Reset Confusion Matrix Button
+# 11. Reset Confusion Matrix Button
 if st.sidebar.button("Reset Confusion Matrix"):
     st.session_state.conf_matrix = np.zeros((2, 2), dtype=int)
     st.rerun()
-
-# 11. Rate the Latest Chatbot Response (moved into sidebar, bottom)
-st.sidebar.write("### Rate the Latest Chatbot Response")
-rating_container = st.sidebar.container()
-with rating_container:
-    st.markdown("<div class='rating-container'>", unsafe_allow_html=True)
-    col1, col2 = st.columns([1, 1])
-    with col1:
-        if st.button("Correct ✅", key="correct_btn", help="Mark the last response as Correct"):
-            st.session_state.conf_matrix[0, 0] += 1
-            st.rerun()
-    with col2:
-        if st.button("Incorrect ❌", key="incorrect_btn", help="Mark the last response as Incorrect"):
-            st.session_state.conf_matrix[0, 1] += 1
-            st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
-
-
-# 5 answerable questions by our chatbot - 
-# 1. What is the github link of the dataset used in the research paper Fashion-MNIST: a Novel Image Dataset for Benchmarking Machine Learning Algorithms? 
-# 2. Which dataset was used by 'Brain Tumor Segmentation with Deep Neural Networks' paper?
-# 3. Who are the authors for the paper 'Deep Residual Learning for Image Recognition'?
-# 4. When was the paper 'U-Net: Convolutional Networks for Biomedical Image Segmentation' published?
-# 5. What are the five histologic patterns of non-mucinous lung adenocarcinoma?
-
-# 5 unanswerable questions by our chatbot - 
-# 1. What is the complete list of references for the paper YOLOv3: An Incremental Improvement?
-# 2. Who are the authors of the paper - Knowledge Transfer for Melanoma Screening with Deep Learning ?
-# 3. When was the paper 'Skin Lesion Synthesis with Generative Adversarial Networks' published?
-# 4. In the paper 'MED3D: TRANSFER LEARNING FOR 3D MEDICAL IMAGE ANALYSIS', what dice coefficient was achieved?
-# 5. Which dataset was used in the paper 'V-Net: Fully Convolutional Neural Networks for Volumetric Medical Image Segmentation' ?
 
