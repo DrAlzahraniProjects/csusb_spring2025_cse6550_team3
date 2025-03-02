@@ -35,7 +35,7 @@ chmod +x docker-setup.sh
 6) Follow the following links to access the app:  
 App - http://127.0.0.1:2503/  
 Jupyter - http://127.0.0.1:2513/
-
+google colab- https://colab.research.google.com/drive/1FfSykhH7YY8WYXm7fRexydGGmYQM_T9O?usp=sharing
 Alternatively, it can be accessed via the CSE department web server:
 https://sec.cse.csusb.edu/team13
 
