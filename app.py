@@ -29,6 +29,7 @@ from langchain.chat_models import init_chat_model
 from langchain.schema import SystemMessage, HumanMessage, AIMessage
 import faiss
 from sentence_transformers import SentenceTransformer
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 # 1. Check for API Key
 api_key = os.getenv("GROQ_API_KEY")
@@ -160,6 +161,13 @@ if 'text' not in df.columns:
 # Extract sentences from the CSV file
 sentences = df['text'].tolist()
 
+# Combine all sentences into a single text string (if needed)
+csv_text = " ".join(sentences)
+
+# Split text into smaller chunks for better embedding and retrieval
+text_splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=50)
+chunks = text_splitter.split_text(csv_text)
+
 # Load a pre-trained sentence embedding model
 model = SentenceTransformer('all-MiniLM-L6-v2')  # You can choose any model you prefer
 
@@ -261,6 +269,10 @@ if st.sidebar.button("Reset Confusion Matrix"):
     st.session_state.conf_matrix = np.zeros((2, 2), dtype=int)
     st.rerun()
 
+
+
+# def set_is_new_webscraping(is_scraping_new):
+#     self.is_new_webscraping = is_scraping_new
 # 5 answerable questions by our chatbot - 
 
 # 1. What is the github link of the dataset used in the research paper Fashion-MNIST: a Novel Image Dataset for Benchmarking Machine Learning Algorithms? 
