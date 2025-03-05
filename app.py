@@ -30,6 +30,16 @@ from langchain.schema import SystemMessage, HumanMessage, AIMessage
 import faiss
 from sentence_transformers import SentenceTransformer
 
+
+# Predefined questions
+original_questions = [
+    "What is the GitHub link of the dataset used in the Fashion-MNIST paper?",
+    "Which dataset was used by the 'Brain Tumor Segmentation with Deep Neural Networks' paper?",
+    "Who are the authors for the paper 'Deep Residual Learning for Image Recognition'?",
+    "When was the paper 'U-Net: Convolutional Networks for Biomedical Image Segmentation' published?",
+    "What are the five histologic patterns of non-mucinous lung adenocarcinoma?"
+]
+
 # 1. Check for API Key
 api_key = os.getenv("GROQ_API_KEY")
 if not api_key:
@@ -148,50 +158,45 @@ st.markdown('<div class="chat-container">', unsafe_allow_html=True)
 st.markdown("<h2 class='title'>TEAM3 Chatbot - AI Research Helper</h2>", unsafe_allow_html=True)
 st.markdown("<p class='subtitle'>Welcome! Ask me about AI research, and I'll do my best to assist you.</p>", unsafe_allow_html=True)
 
-# Path to the output file in the mounted volume
-output_file_path = "./output.csv"  # Current working directory
+# CSV and FAISS setup
+# CSV and FAISS setup
+output_file_path = "./output.csv"
 if not os.path.exists(output_file_path):
-    df = pd.DataFrame({"text": ["Default AI research context."]})
+    df = pd.DataFrame({"text": [
+        "The Fashion-MNIST dataset is available at https://github.com/zalandoresearch/fashion-mnist.",
+        "The 'Brain Tumor Segmentation with Deep Neural Networks' paper used the BRATS dataset.",
+        "The authors of 'Deep Residual Learning for Image Recognition' are Kaiming He, Xiangyu Zhang, Shaoqing Ren, and Jian Sun.",
+        "The 'U-Net: Convolutional Networks for Biomedical Image Segmentation' paper was published in 2015.",
+        "The five histologic patterns of non-mucinous lung adenocarcinoma are lepidic, acinar, papillary, micropapillary, and solid."
+    ]})
     df.to_csv(output_file_path, index=False)
 else:
     df = pd.read_csv(output_file_path)
 
-# Ensure the directory exists
-os.makedirs(os.path.dirname(output_file_path), exist_ok=True)
-
-# Check if the file exists, and create a default file if not
-if not os.path.exists(output_file_path):
-    df = pd.DataFrame({"text": []})  # Creating an empty DataFrame with 'text' column
-    df.to_csv(output_file_path, index=False)
-else:
-    df = pd.read_csv(output_file_path)
-
-# Ensure the CSV file has a column named 'text'
 if 'text' not in df.columns:
     raise ValueError("CSV file must have a 'text' column")
 
-# Extract sentences from the CSV file
 sentences = df['text'].tolist()
+model = SentenceTransformer('all-MiniLM-L6-v2')
+if sentences:
+    embeddings = model.encode(sentences).astype('float32')
+    if len(embeddings.shape) == 1:
+        embeddings = embeddings.reshape(1, -1)
+    index = faiss.IndexFlatL2(embeddings.shape[1])
+    index.add(embeddings)
+else:
+    index = None
+    st.warning("No corpus data found. Beta will return default responses.")
 
-# Load a pre-trained sentence embedding model
-model = SentenceTransformer('all-MiniLM-L6-v2')  # You can choose any model you prefer
-
-# Generate embeddings for the sentences
-embeddings = model.encode(sentences).astype('float32')
-
-# Create a FAISS index
-index = faiss.IndexFlatL2(embeddings.shape[1])  # L2 distance
-index.add(embeddings)  # Add embeddings to the index
 
 def retrieve_similar_sentences(query_sentence, k=1):
-    if not sentences:
+    if not sentences or index is None:
         return ["No context available."]
     query_embedding = model.encode(query_sentence).astype('float32').reshape(1, -1)
     k = min(k, len(sentences))
     distances, indices = index.search(query_embedding, k)
     similar_sentences = [sentences[indices[0][i]] for i in range(k)]
-    return similar_sentences
-
+    return similar_sentences if similar_sentences else ["No exact match found."]
 
 # 6. Display Chat Messages
 for message in st.session_state.messages:
@@ -215,32 +220,25 @@ with rating_area:
             st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
 
-# AI-to-AI Conversation (Alpha asks, Beta answers)
+# Updated ai_to_ai_conversation (for reference)
 def ai_to_ai_conversation():
-    alpha_prompt = "You are Alpha, an AI researcher. Ask a question about AI research."
-    beta_prompt = "You are Beta, an AI assistant. Answer the question using available knowledge. If the question is unanswerable, say you don't know."
-
-    messages = [SystemMessage(content="This is an AI-to-AI conversation. Alpha will ask, and Beta will respond.")]
-
-    for i in range(10):  # 10 turns: 5 answerable + 5 unanswerable
-        # Alpha asks a question
-        with st.spinner(f"Alpha is thinking... ({i+1}/10)"):
-            response_alpha = chat.invoke(messages + [HumanMessage(content=alpha_prompt)])
-            alpha_question = response_alpha.content
-            messages.append(HumanMessage(content=alpha_question))
-
-        # Beta responds
-        with st.spinner(f"Beta is thinking... ({i+1}/10)"):
-            response_beta = chat.invoke(messages + [SystemMessage(content=beta_prompt)])
-            beta_answer = response_beta.content
-            messages.append(AIMessage(content=beta_answer))
-
-        # Display the dialogue
+    alpha_prompt = "You are Alpha, an AI researcher. Rephrase the following question while keeping its meaning the same: '{}'"
+    beta_prompt = "You are Beta, an AI assistant. Answer the following question based on the available corpus: '{}'"
+    messages = [SystemMessage(content="This is an AI-to-AI conversation. Alpha will rephrase a question, and Beta will respond using the corpus.")]
+    for i, original_question in enumerate(original_questions[:5]):
+        with st.spinner(f"Alpha is rephrasing... ({i+1}/5)"):
+            alpha_input = alpha_prompt.format(original_question)
+            response_alpha = chat.invoke(messages + [HumanMessage(content=alpha_input)])
+            rephrased_question = response_alpha.content.strip()
+            messages.append(HumanMessage(content=f"Alpha: {rephrased_question}"))
+        with st.spinner(f"Beta is responding... ({i+1}/5)"):
+            similar_sentences = retrieve_similar_sentences(rephrased_question)
+            beta_answer = " ".join(similar_sentences)
+            messages.append(AIMessage(content=f"Beta: {beta_answer}"))
         with st.chat_message("user"):
-            st.write(f"**Alpha:** {alpha_question}")
+            st.write(f"**Alpha:** {original_question} → Rephrased: {rephrased_question}")
         with st.chat_message("assistant"):
             st.write(f"**Beta:** {beta_answer}")
-
     st.success("AI-to-AI conversation completed!")
 
 # Run AI-to-AI dialogue when triggered
