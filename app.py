@@ -150,6 +150,11 @@ st.markdown("<p class='subtitle'>Welcome! Ask me about AI research, and I'll do 
 
 # Path to the output file in the mounted volume
 output_file_path = "./output.csv"  # Current working directory
+if not os.path.exists(output_file_path):
+    df = pd.DataFrame({"text": ["Default AI research context."]})
+    df.to_csv(output_file_path, index=False)
+else:
+    df = pd.read_csv(output_file_path)
 
 # Ensure the directory exists
 os.makedirs(os.path.dirname(output_file_path), exist_ok=True)
@@ -179,13 +184,11 @@ index = faiss.IndexFlatL2(embeddings.shape[1])  # L2 distance
 index.add(embeddings)  # Add embeddings to the index
 
 def retrieve_similar_sentences(query_sentence, k=1):
-    # Generate embedding for the query sentence
-    query_embedding = model.encode(query_sentence).astype('float32').reshape(1, -1)  # Reshape to 2D array
-
-    # Search the index
+    if not sentences:
+        return ["No context available."]
+    query_embedding = model.encode(query_sentence).astype('float32').reshape(1, -1)
+    k = min(k, len(sentences))
     distances, indices = index.search(query_embedding, k)
-
-    # Retrieve and return the most similar sentences
     similar_sentences = [sentences[indices[0][i]] for i in range(k)]
     return similar_sentences
 
