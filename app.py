@@ -149,9 +149,17 @@ st.markdown("<h2 class='title'>TEAM3 Chatbot - AI Research Helper</h2>", unsafe_
 st.markdown("<p class='subtitle'>Welcome! Ask me about AI research, and I'll do my best to assist you.</p>", unsafe_allow_html=True)
 
 # Path to the output file in the mounted volume
-output_file_path = "/data/output.csv" 
+output_file_path = "/data/output.csv"
 
-df = pd.read_csv(output_file_path)
+# Ensure the directory exists
+os.makedirs(os.path.dirname(output_file_path), exist_ok=True)
+
+# Check if the file exists, and create a default file if not
+if not os.path.exists(output_file_path):
+    df = pd.DataFrame({"text": []})  # Creating an empty DataFrame with 'text' column
+    df.to_csv(output_file_path, index=False)
+else:
+    df = pd.read_csv(output_file_path)
 
 # Ensure the CSV file has a column named 'text'
 if 'text' not in df.columns:
