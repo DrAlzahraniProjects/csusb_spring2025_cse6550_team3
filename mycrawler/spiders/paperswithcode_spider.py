@@ -1,40 +1,36 @@
 import scrapy
-import io
 from PyPDF2 import PdfReader
+from io import BytesIO
 
 class PaperSpider(scrapy.Spider):
-    name = 'paper_spider'
-    start_urls = ['https://paperswithcode.com/area/medical/cancer']  # Replace with the URL of the website you want to scrape
-    max_depth = 3  # Set the maximum depth to follow links
+    name = "paper_spider"
+    start_urls = ['https://paperswithcode.com/task/breast-cancer-detection']  # Replace with the URL you want to scrape
 
-    def parse(self, response, depth=0):
-        # Extract PDF links
-        pdf_links = response.css('a[href$=".pdf"]::attr(href)').getall()
-        for pdf_link in pdf_links:
-            # Create absolute URL if the link is relative
-            if not pdf_link.startswith('http'):
-                pdf_link = response.urljoin(pdf_link)
-            yield scrapy.Request(pdf_link, callback=self.extract_text_from_pdf)
+    def parse(self, response):
+        # Select the div with id 'task-papers-list'
+        papers_div = response.css('div#task-papers-list')
 
-        # Follow links if the current depth is less than max_depth
-        if depth < self.max_depth:
-            next_links = response.css('a::attr(href)').getall()
-            for next_link in next_links:
-                if not next_link.startswith('http'):
-                    next_link = response.urljoin(next_link)
-                yield scrapy.Request(next_link, callback=self.parse, cb_kwargs={'depth': depth + 1})
+        # Extract all href links that start with '/paper/'
+        for paper in papers_div.css('a[href^="/paper/"]'):
+            paper_link = response.urljoin(paper.attrib['href'])
+            yield scrapy.Request(paper_link, callback=self.parse_paper)
 
-    def extract_text_from_pdf(self, response):
-        # Use BytesIO to handle the PDF content in memory
-        pdf_file = io.BytesIO(response.body)
+    def parse_paper(self, response):
+        # Assuming the PDF link is in the response, you may need to adjust this
+        pdf_url = response.css('a[href$=".pdf"]::attr(href)').get()  # Adjust selector as needed
+        if pdf_url:
+            pdf_id = pdf_url.split('pdf/')[1].split('>')[0]  # Split by 'pdf/' and then by '>'
 
-        # Extract text from the PDF and yield it
-        yield from self.extract_text(pdf_file)
+            if (pdf_id == "2004.03500v2.pdf" or pdf_id == "1708.09427v5.pdf"):
+                pdf_url = response.urljoin(pdf_url)
+                yield scrapy.Request(pdf_url, callback=self.parse_pdf)
 
-    def extract_text(self, pdf_file):
-        # Read the PDF file from the BytesIO object
+    def parse_pdf(self, response):
+        # Read the PDF file
+        pdf_file = BytesIO(response.body)
         reader = PdfReader(pdf_file)
+
         for page in reader.pages:
             text = page.extract_text()
-            if text:  # Check if text extraction was successful
-                yield {"text": text}  # Yield each page's text as a dictionary
+            if text:
+                yield {"text": text}
