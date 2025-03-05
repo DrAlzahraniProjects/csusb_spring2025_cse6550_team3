@@ -29,15 +29,23 @@ from langchain.chat_models import init_chat_model
 from langchain.schema import SystemMessage, HumanMessage, AIMessage
 import faiss
 from sentence_transformers import SentenceTransformer
+import time
 
 
 # Predefined questions
 original_questions = [
-    "What is the GitHub link of the dataset used in the Fashion-MNIST paper?",
-    "Which dataset was used by the 'Brain Tumor Segmentation with Deep Neural Networks' paper?",
-    "Who are the authors for the paper 'Deep Residual Learning for Image Recognition'?",
-    "When was the paper 'U-Net: Convolutional Networks for Biomedical Image Segmentation' published?",
-    "What are the five histologic patterns of non-mucinous lung adenocarcinoma?"
+    # Answerable Questions
+    "What is the main advantage of using Curvature-based Feature Selection (CFS) over PCA for dimensionality reduction?",
+    "How does the Inception-ResNet-v2 model contribute to feature extraction in breast tumor classification?",
+    "What are the key classifiers used in the ensemble method for breast tumor classification, and why were they chosen?",
+    "How does Menger Curvature help in ranking features in Electronic Health Records (EHR) data classification?",
+    "What are the main challenges in handling missing data in medical datasets, and how does the first paper address this issue?",
+    # Unanswerable Questions
+    "How does the performance of CFS compare to other feature selection methods on completely different datasets outside the ones mentioned?",
+    "What specific preprocessing steps were used for data normalization in each classification experiment?",
+    "How would the proposed breast cancer classification model perform on a realtime clinical setup?",
+    "Can the Curvature-based Feature Selection method be adapted to non-medical domains like finance or cybersecurity?",
+    "How does the ensemble of CatBoost, XGBoost, and LightGBM compare to deep learning models trained end-to-end on histopathology images?"
 ]
 
 # 1. Check for API Key
@@ -56,6 +64,8 @@ if "messages" not in st.session_state:
     ]
 if "conf_matrix" not in st.session_state:
     st.session_state.conf_matrix = np.zeros((2, 2), dtype=int)
+if "conversation_history" not in st.session_state:
+    st.session_state.conversation_history = []
 
 # 4. Apply Custom CSS
 st.markdown(
@@ -159,15 +169,14 @@ st.markdown("<h2 class='title'>TEAM3 Chatbot - AI Research Helper</h2>", unsafe_
 st.markdown("<p class='subtitle'>Welcome! Ask me about AI research, and I'll do my best to assist you.</p>", unsafe_allow_html=True)
 
 # CSV and FAISS setup
-# CSV and FAISS setup
 output_file_path = "./output.csv"
 if not os.path.exists(output_file_path):
     df = pd.DataFrame({"text": [
-        "The Fashion-MNIST dataset is available at https://github.com/zalandoresearch/fashion-mnist.",
-        "The 'Brain Tumor Segmentation with Deep Neural Networks' paper used the BRATS dataset.",
-        "The authors of 'Deep Residual Learning for Image Recognition' are Kaiming He, Xiangyu Zhang, Shaoqing Ren, and Jian Sun.",
-        "The 'U-Net: Convolutional Networks for Biomedical Image Segmentation' paper was published in 2015.",
-        "The five histologic patterns of non-mucinous lung adenocarcinoma are lepidic, acinar, papillary, micropapillary, and solid."
+        "The main advantage of Curvature-based Feature Selection (CFS) over PCA is that CFS selects features based on their relevance to the target variable, while PCA focuses on variance without considering class separability.",
+        "The Inception-ResNet-v2 model contributes to feature extraction in breast tumor classification by providing deep, hierarchical features from histopathological images, improving classification accuracy.",
+        "The key classifiers in the ensemble method for breast tumor classification are CatBoost, XGBoost, and LightGBM, chosen for their robustness, speed, and ability to handle imbalanced medical data.",
+        "Menger Curvature helps in ranking features in EHR data classification by measuring the geometric complexity of data points, prioritizing features with higher discriminative power.",
+        "The main challenges in handling missing data in medical datasets include imputation bias and data sparsity; the first paper addresses this using a curvature-based imputation technique."
     ]})
     df.to_csv(output_file_path, index=False)
 else:
@@ -220,29 +229,67 @@ with rating_area:
             st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
 
-# Updated ai_to_ai_conversation (for reference)
+# Updated ai_to_ai_conversation function
 def ai_to_ai_conversation():
-    alpha_prompt = "You are Alpha, an AI researcher. Rephrase the following question while keeping its meaning the same: '{}'"
+    alpha_prompt = "You are Alpha, an AI researcher. Provide only the rephrased version of this question, keeping its meaning the same, without any additional text: '{}'"
     beta_prompt = "You are Beta, an AI assistant. Answer the following question based on the available corpus: '{}'"
-    messages = [SystemMessage(content="This is an AI-to-AI conversation. Alpha will rephrase a question, and Beta will respond using the corpus.")]
-    for i, original_question in enumerate(original_questions[:5]):
-        with st.spinner(f"Alpha is rephrasing... ({i+1}/5)"):
+
+    messages = [SystemMessage(content="This is an AI-to-AI conversation. Alpha will ask a question, and Beta will respond using the corpus.")]
+
+    # Clear previous conversation history but keep messages for model context
+    st.session_state.conversation_history = []
+
+    for i, original_question in enumerate(original_questions):
+        is_answerable = i < 5
+
+        with st.spinner(f"Alpha is asking... ({i+1}/10)"):
             alpha_input = alpha_prompt.format(original_question)
             response_alpha = chat.invoke(messages + [HumanMessage(content=alpha_input)])
             rephrased_question = response_alpha.content.strip()
-            messages.append(HumanMessage(content=f"Alpha: {rephrased_question}"))
-        with st.spinner(f"Beta is responding... ({i+1}/5)"):
+            rephrased_question = rephrased_question.split('\n')[0].strip()
+            messages.append(HumanMessage(content=rephrased_question))
+
+        with st.chat_message("user"):
+            st.write(f"**Alpha:** {rephrased_question}")
+        st.session_state.conversation_history.append(("user", f"**Alpha:** {rephrased_question}"))
+
+        beta_placeholder = st.empty()
+        with beta_placeholder.chat_message("assistant"):
+            st.write("**Beta:** Thinking...")
+
+        time.sleep(3)
+
+        with st.spinner(f"Beta is responding... ({i+1}/10)"):
             similar_sentences = retrieve_similar_sentences(rephrased_question)
             beta_answer = " ".join(similar_sentences)
-            messages.append(AIMessage(content=f"Beta: {beta_answer}"))
-        with st.chat_message("user"):
-            st.write(f"**Alpha:** {original_question} → Rephrased: {rephrased_question}")
-        with st.chat_message("assistant"):
+            messages.append(AIMessage(content=beta_answer))
+
+        with beta_placeholder.chat_message("assistant"):
             st.write(f"**Beta:** {beta_answer}")
+        st.session_state.conversation_history.append(("assistant", f"**Beta:** {beta_answer}"))
+
+        # Update confusion matrix
+        if is_answerable and "No context available" not in beta_answer:
+            st.session_state.conf_matrix[0, 0] += 1  # TP
+        elif is_answerable and "No context available" in beta_answer:
+            st.session_state.conf_matrix[0, 1] += 1  # FN
+        elif not is_answerable and "No context available" in beta_answer:
+            st.session_state.conf_matrix[1, 1] += 1  # TN
+        else:
+            st.session_state.conf_matrix[1, 0] += 1  # FP
+
+        if i < len(original_questions) - 1:
+            time.sleep(2)
+
     st.success("AI-to-AI conversation completed!")
 
+# Display conversation history
+for role, content in st.session_state.conversation_history:
+    with st.chat_message(role):
+        st.write(content)
+
 # Run AI-to-AI dialogue when triggered
-if st.button("Run AI-to-AI Conversation"):
+if st.button("Run AI-to-AI Conversation", key="run_conversation"):
     ai_to_ai_conversation()
 
 # 8. Chat Input at the Bottom
@@ -265,12 +312,12 @@ if user_input:
 
 st.markdown("</div>", unsafe_allow_html=True)
 
-# 9. Confusion Matrix & Metrics
+# Sidebar with reset button
 st.sidebar.write("### Confusion Matrix")
 cm_df = pd.DataFrame(
     st.session_state.conf_matrix,
-    index=["True answerable (Yes/No)", "True unanswerable"],
-    columns=["LLM: Answerable (Yes/No)", "LLM: Unanswerable"]
+    index=["True Answerable", "True Unanswerable"],
+    columns=["Predicted Answerable", "Predicted Unanswerable"]
 )
 st.sidebar.table(cm_df)
 
@@ -279,11 +326,6 @@ FN = st.session_state.conf_matrix[0, 1]
 FP = st.session_state.conf_matrix[1, 0]
 TN = st.session_state.conf_matrix[1, 1]
 
-# True Positive (TP) → The LLM correctly identifies that the question is answerable and provides an answer ("yes" or "no")
-# False Positive (FP) → The LLM incorrectly tries to answer a question that is actually unanswerable
-# True Negative (TN) → The LLM correctly identifies that the question is unanswerable and responds accordingly
-# False Negative (FN) → The LLM fails to answer a question that is actually answerable
-
 sensitivity = TP / (TP + FN) if (TP + FN) else 0
 specificity = TN / (TN + FP) if (TN + FP) else 0
 accuracy = (TP + TN) / np.sum(st.session_state.conf_matrix) if np.sum(st.session_state.conf_matrix) else 0
@@ -291,30 +333,16 @@ precision = TP / (TP + FP) if (TP + FP) else 0
 f1_score = 2 * (precision * sensitivity) / (precision + sensitivity) if (precision + sensitivity) else 0
 
 st.sidebar.write("### Metrics")
-st.sidebar.write(f"Sensitivity: {sensitivity:.2f}")
-st.sidebar.write(f"Specificity: {specificity:.2f}")
+st.sidebar.write(f"Sensitivity (True Answerable Detection): {sensitivity:.2f}")
+st.sidebar.write(f"Specificity (True Unanswerable Detection): {specificity:.2f}")
 st.sidebar.write(f"Accuracy: {accuracy:.2f}")
 st.sidebar.write(f"Precision: {precision:.2f}")
 st.sidebar.write(f"F1 Score: {f1_score:.2f}")
 
 # 10. Reset Confusion Matrix Button
-if st.sidebar.button("Reset Confusion Matrix"):
+if st.sidebar.button("Reset Confusion Matrix", key="reset_matrix"):
     st.session_state.conf_matrix = np.zeros((2, 2), dtype=int)
-    st.rerun()
-
-# 5 answerable questions by our chatbot - 
-
-# 1. What is the github link of the dataset used in the research paper Fashion-MNIST: a Novel Image Dataset for Benchmarking Machine Learning Algorithms? 
-# 2. Which dataset was used by 'Brain Tumor Segmentation with Deep Neural Networks' paper?
-# 3. Who are the authors for the paper 'Deep Residual Learning for Image Recognition'?
-# 4. When was the paper 'U-Net: Convolutional Networks for Biomedical Image Segmentation' published?
-# 5. What are the five histologic patterns of non-mucinous lung adenocarcinoma?
+    st.session_state.conversation_history = []  # Clear conversation history
+    st.rerun()  # Rerun to refresh UI
 
 
-# 5 unanswerable questions by our chatbot - 
-
-# 1. What is the complete list of references for the paper YOLOv3: An Incremental Improvement?
-# 2. Who are the authors of the paper - Knowledge Transfer for Melanoma Screening with Deep Learning ?
-# 3. When was the paper 'Skin Lesion Synthesis with Generative Adversarial Networks' published?
-# 4. In the paper 'MED3D: TRANSFER LEARNING FOR 3D MEDICAL IMAGE ANALYSIS', what dice coefficient was achieved?
-# 5. Which dataset was used in the paper 'V-Net: Fully Convolutional Neural Networks for Volumetric Medical Image Segmentation' ?
