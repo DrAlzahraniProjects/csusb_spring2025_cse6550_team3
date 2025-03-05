@@ -204,6 +204,38 @@ with rating_area:
             st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
 
+# AI-to-AI Conversation (Alpha asks, Beta answers)
+def ai_to_ai_conversation():
+    alpha_prompt = "You are Alpha, an AI researcher. Ask a question about AI research."
+    beta_prompt = "You are Beta, an AI assistant. Answer the question using available knowledge. If the question is unanswerable, say you don't know."
+
+    messages = [SystemMessage(content="This is an AI-to-AI conversation. Alpha will ask, and Beta will respond.")]
+
+    for i in range(10):  # 10 turns: 5 answerable + 5 unanswerable
+        # Alpha asks a question
+        with st.spinner(f"Alpha is thinking... ({i+1}/10)"):
+            response_alpha = chat.invoke(messages + [HumanMessage(content=alpha_prompt)])
+            alpha_question = response_alpha.content
+            messages.append(HumanMessage(content=alpha_question))
+
+        # Beta responds
+        with st.spinner(f"Beta is thinking... ({i+1}/10)"):
+            response_beta = chat.invoke(messages + [SystemMessage(content=beta_prompt)])
+            beta_answer = response_beta.content
+            messages.append(AIMessage(content=beta_answer))
+
+        # Display the dialogue
+        with st.chat_message("user"):
+            st.write(f"**Alpha:** {alpha_question}")
+        with st.chat_message("assistant"):
+            st.write(f"**Beta:** {beta_answer}")
+
+    st.success("AI-to-AI conversation completed!")
+
+# Run AI-to-AI dialogue when triggered
+if st.button("Run AI-to-AI Conversation"):
+    ai_to_ai_conversation()
+
 # 8. Chat Input at the Bottom
 user_input = st.chat_input("Type your message here...")
 if user_input:
