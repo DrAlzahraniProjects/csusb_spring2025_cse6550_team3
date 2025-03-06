@@ -226,20 +226,13 @@ def ai_to_ai_conversation():
         time.sleep(3)
 
         with st.spinner(f"Beta is responding... ({i+1}/10)"):
-        similar_sentences = retrieve_similar_sentences(rephrased_question)
-        context = " ".join(similar_sentences)  # Combine retrieved information
+            similar_sentences = retrieve_similar_sentences(rephrased_question)
+            context = " ".join(similar_sentences)  # Combine retrieved information
     
-        # Construct a more informative prompt for Beta
-        beta_input = f"You are Beta, an AI assistant. Answer the following question using the given context:\n\nQuestion: {rephrased_question}\nContext: {context}\n\nProvide a clear, well-structured response based on the information available."
+            # Construct a more informative prompt for Beta
+            beta_input = f"You are Beta, an AI assistant. Answer the following question using the given context:\n\nQuestion: {rephrased_question}\nContext: {context}\n\nProvide a clear, well-structured response based on the information available."
 
-        response_beta = chat.invoke(messages + [HumanMessage(content=beta_input)])
-        beta_answer = response_beta.content.strip()
-        messages.append(AIMessage(content=beta_answer))
-            
-            # Use context to generate a new response with Llama 3
-            beta_input = beta_prompt.format(rephrased_question)
-            messages_to_send = messages + [SystemMessage(content=f"Context: {context}"), HumanMessage(content=beta_input)]
-            response_beta = chat.invoke(messages_to_send)
+            response_beta = chat.invoke(messages + [HumanMessage(content=beta_input)])
             beta_answer = response_beta.content.strip()
             messages.append(AIMessage(content=beta_answer))
 
