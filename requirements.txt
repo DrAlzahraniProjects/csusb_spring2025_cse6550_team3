@@ -6,4 +6,5 @@ pandas  # If you use pandas for confusion matrix or performance metrics calculat
 PyPDF2
 langchain-huggingface
 scrapy
-faiss-gpu
+faiss-gpu==1.7.2
+numpy==1.23.5
