@@ -1,26 +1,3 @@
-# # Jupyter Notebook Documentation for `app.py`
-# 
-# ## **Overview**
-# This script sets up a **Streamlit chatbot web app** that uses **LangChain** and the **Llama 3 (8B) model from Groq** 
-# to provide AI-powered interactions.
-
-# ## **Dependencies**
-# Ensure you have the required Python libraries installed before running the script:
-# ```
-# pip install streamlit langchain groq
-# ```
-
-# ## **Environment Variable**
-# Before running the chatbot, set your `GROQ_API_KEY` environment variable:
-# ```bash
-# export GROQ_API_KEY="your_api_key_here"  # Linux/macOS
-# set GROQ_API_KEY="your_api_key_here"  # Windows (CMD)
-# $env:GROQ_API_KEY="your_api_key_here"  # Windows (PowerShell)
-# ```
-
-# ## **Code Breakdown**
-
-# ### **1. Import Required Modules**
 import streamlit as st
 import numpy as np
 import pandas as pd
@@ -31,16 +8,13 @@ import faiss
 from sentence_transformers import SentenceTransformer
 import time
 
-
 # Predefined questions
 original_questions = [
-    # Answerable Questions
     "What is the main advantage of using Curvature-based Feature Selection (CFS) over PCA for dimensionality reduction?",
     "How does the Inception-ResNet-v2 model contribute to feature extraction in breast tumor classification?",
     "What are the key classifiers used in the ensemble method for breast tumor classification, and why were they chosen?",
     "How does Menger Curvature help in ranking features in Electronic Health Records (EHR) data classification?",
     "What are the main challenges in handling missing data in medical datasets, and how does the first paper address this issue?",
-    # Unanswerable Questions
     "How does the performance of CFS compare to other feature selection methods on completely different datasets outside the ones mentioned?",
     "What specific preprocessing steps were used for data normalization in each classification experiment?",
     "How would the proposed breast cancer classification model perform on a realtime clinical setup?",
@@ -67,7 +41,7 @@ if "conf_matrix" not in st.session_state:
 if "conversation_history" not in st.session_state:
     st.session_state.conversation_history = []
 
-# 4. Apply Custom CSS
+# 4. Apply Custom CSS (unchanged)
 st.markdown(
     """
     <style>
@@ -125,7 +99,6 @@ st.markdown(
         padding: 10px;
         font-size: 16px;
     }
-    /* Make rating buttons look smaller and aligned */
     .rating-container {
         display: flex;
         flex-direction: row;
@@ -145,7 +118,6 @@ st.markdown(
     .rating-button:hover {
         background-color: #005999;
     }
-    /* Sidebar Button */
     .stButton>button {
         background-color: #0078D4;
         color: #FFFFFF;
@@ -197,7 +169,6 @@ else:
     index = None
     st.warning("No corpus data found. Beta will return default responses.")
 
-
 def retrieve_similar_sentences(query_sentence, k=1):
     if not sentences or index is None:
         return ["No context available."]
@@ -207,13 +178,13 @@ def retrieve_similar_sentences(query_sentence, k=1):
     similar_sentences = [sentences[indices[0][i]] for i in range(k)]
     return similar_sentences if similar_sentences else ["No exact match found."]
 
-# 6. Display Chat Messages
+# 6. Display Chat Messages (unchanged)
 for message in st.session_state.messages:
     role = "user" if isinstance(message, HumanMessage) else "assistant"
     with st.chat_message(role):
         st.write(message.content)
 
-# 7. Rating Container (below messages)
+# 7. Rating Container (unchanged)
 st.write("#### Rate the Latest Chatbot Response")
 rating_area = st.container()
 with rating_area:
@@ -232,11 +203,10 @@ with rating_area:
 # Updated ai_to_ai_conversation function
 def ai_to_ai_conversation():
     alpha_prompt = "You are Alpha, an AI researcher. Provide only the rephrased version of this question, keeping its meaning the same, without any additional text: '{}'"
-    beta_prompt = "You are Beta, an AI assistant. Answer the following question based on the available corpus: '{}'"
+    beta_prompt = "You are Beta, an AI assistant. Using the provided context, generate a concise answer to the following question: '{}'"
 
-    messages = [SystemMessage(content="This is an AI-to-AI conversation. Alpha will ask a question, and Beta will respond using the corpus.")]
+    messages = [SystemMessage(content="This is an AI-to-AI conversation. Alpha will ask a question, and Beta will respond using the corpus as context.")]
 
-    # Clear previous conversation history but keep messages for model context
     st.session_state.conversation_history = []
 
     for i, original_question in enumerate(original_questions):
@@ -260,8 +230,15 @@ def ai_to_ai_conversation():
         time.sleep(2)
 
         with st.spinner(f"Beta is responding... ({i+1}/10)"):
+            # Retrieve similar sentences as context
             similar_sentences = retrieve_similar_sentences(rephrased_question)
-            beta_answer = " ".join(similar_sentences)
+            context = " ".join(similar_sentences)
+            
+            # Use context to generate a new response with Llama 3
+            beta_input = beta_prompt.format(rephrased_question)
+            messages_to_send = messages + [SystemMessage(content=f"Context: {context}"), HumanMessage(content=beta_input)]
+            response_beta = chat.invoke(messages_to_send)
+            beta_answer = response_beta.content.strip()
             messages.append(AIMessage(content=beta_answer))
 
         with beta_placeholder.chat_message("assistant"):
@@ -292,20 +269,15 @@ for role, content in st.session_state.conversation_history:
 if st.button("Run AI-to-AI Conversation", key="run_conversation"):
     ai_to_ai_conversation()
 
-# 8. Chat Input at the Bottom
+# 8. Chat Input at the Bottom (unchanged)
 user_input = st.chat_input("Type your message here...")
 if user_input:
     st.session_state.messages.append(HumanMessage(content=user_input))
-
-    # Retrieve similar sentences based on user input
     similar_sentences = retrieve_similar_sentences(user_input)
-    context = " ".join(similar_sentences)  # Combine similar sentences for context
-
+    context = " ".join(similar_sentences)
     with st.spinner("Thinking..."):
-        # Create a new list of messages to send to the model, including context
         messages_to_send = st.session_state.messages + [SystemMessage(content=f"Context: {context}")]
         response = chat.invoke(messages_to_send)
-
         ai_message = AIMessage(content=response.content)
         st.session_state.messages.append(ai_message)
     st.rerun()
@@ -339,10 +311,7 @@ st.sidebar.write(f"Accuracy: {accuracy:.2f}")
 st.sidebar.write(f"Precision: {precision:.2f}")
 st.sidebar.write(f"F1 Score: {f1_score:.2f}")
 
-# 10. Reset Confusion Matrix Button
 if st.sidebar.button("Reset Confusion Matrix", key="reset_matrix"):
     st.session_state.conf_matrix = np.zeros((2, 2), dtype=int)
-    st.session_state.conversation_history = []  # Clear conversation history
-    st.rerun()  # Rerun to refresh UI
-
-
+    st.session_state.conversation_history = []
+    st.rerun()
