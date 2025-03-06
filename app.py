@@ -31,6 +31,7 @@ import faiss
 from sentence_transformers import SentenceTransformer
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 import time
+import re
 
 
 # Predefined questions
@@ -261,7 +262,45 @@ def ai_to_ai_conversation():
 
         with st.spinner(f"Beta is responding... ({i+1}/10)"):
             similar_sentences = retrieve_similar_sentences(rephrased_question)
-            beta_answer = " ".join(similar_sentences)
+            context = " ".join(similar_sentences)
+
+            # Create a new list of messages to send to the model, including context
+            messages_to_send = st.session_state.messages + [SystemMessage(content=f"Context: {context}")]
+            response = chat.invoke(messages_to_send)
+
+            # beta_answer = AIMessage(content=response.content)
+            beta_answer_str = ""
+
+            # Get the full response string
+            # Ensure response is a string; if not, extract its content.
+            if hasattr(response, 'content'):
+                beta_answer_str = response.content
+            else:
+                beta_answer_str = response
+
+            # Define the prefix that precedes the actual content
+            prefix = 'content="'
+            suffix = '" additional_kwargs='
+
+            # Check that the string starts with the expected prefix
+            if beta_answer_str.startswith(prefix):
+                # Remove the prefix
+                temp = beta_answer_str[len(prefix):]
+                # Find the end of the content using the suffix
+                end_index = temp.find(suffix)
+                if end_index != -1:
+                    clean_text = temp[:end_index]
+                else:
+                    # Fallback: if the suffix isn't found, take the rest of the string
+                    clean_text = temp
+            else:
+                # If the structure isn't as expected, fallback to using the whole string
+                clean_text = beta_answer_str
+
+            # Remove newline characters and extra spaces
+            clean_text = clean_text.replace("\n", " ").strip()
+
+            beta_answer = clean_text
             messages.append(AIMessage(content=beta_answer))
 
         with beta_placeholder.chat_message("assistant"):
