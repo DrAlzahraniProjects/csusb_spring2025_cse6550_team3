@@ -29,6 +29,7 @@ from langchain.chat_models import init_chat_model
 from langchain.schema import SystemMessage, HumanMessage, AIMessage
 import faiss
 from sentence_transformers import SentenceTransformer
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 import time
 
 
@@ -168,44 +169,43 @@ st.markdown('<div class="chat-container">', unsafe_allow_html=True)
 st.markdown("<h2 class='title'>TEAM3 Chatbot - AI Research Helper</h2>", unsafe_allow_html=True)
 st.markdown("<p class='subtitle'>Welcome! Ask me about AI research, and I'll do my best to assist you.</p>", unsafe_allow_html=True)
 
-# CSV and FAISS setup
-output_file_path = "./output.csv"
-if not os.path.exists(output_file_path):
-    df = pd.DataFrame({"text": [
-        "The main advantage of Curvature-based Feature Selection (CFS) over PCA is that CFS selects features based on their relevance to the target variable, while PCA focuses on variance without considering class separability.",
-        "The Inception-ResNet-v2 model contributes to feature extraction in breast tumor classification by providing deep, hierarchical features from histopathological images, improving classification accuracy.",
-        "The key classifiers in the ensemble method for breast tumor classification are CatBoost, XGBoost, and LightGBM, chosen for their robustness, speed, and ability to handle imbalanced medical data.",
-        "Menger Curvature helps in ranking features in EHR data classification by measuring the geometric complexity of data points, prioritizing features with higher discriminative power.",
-        "The main challenges in handling missing data in medical datasets include imputation bias and data sparsity; the first paper addresses this using a curvature-based imputation technique."
-    ]})
-    df.to_csv(output_file_path, index=False)
-else:
-    df = pd.read_csv(output_file_path)
+# Path to the output file in the mounted volume
+output_file_path = "/data/output.csv" 
+
+df = pd.read_csv(output_file_path)
 
 if 'text' not in df.columns:
     raise ValueError("CSV file must have a 'text' column")
 
 sentences = df['text'].tolist()
-model = SentenceTransformer('all-MiniLM-L6-v2')
-if sentences:
-    embeddings = model.encode(sentences).astype('float32')
-    if len(embeddings.shape) == 1:
-        embeddings = embeddings.reshape(1, -1)
-    index = faiss.IndexFlatL2(embeddings.shape[1])
-    index.add(embeddings)
-else:
-    index = None
-    st.warning("No corpus data found. Beta will return default responses.")
 
+# Combine all sentences into a single text string (if needed)
+csv_text = " ".join(sentences)
+
+# Split text into smaller chunks for better embedding and retrieval
+text_splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=50)
+chunks = text_splitter.split_text(csv_text)
+
+# Load a pre-trained sentence embedding model
+model = SentenceTransformer('all-MiniLM-L6-v2')  # You can choose any model you prefer
+
+# Generate embeddings for the sentences
+embeddings = model.encode(sentences).astype('float32')
+
+# Create a FAISS index
+index = faiss.IndexFlatL2(embeddings.shape[1])  # L2 distance
+index.add(embeddings)  # Add embeddings to the index
 
 def retrieve_similar_sentences(query_sentence, k=1):
-    if not sentences or index is None:
-        return ["No context available."]
-    query_embedding = model.encode(query_sentence).astype('float32').reshape(1, -1)
-    k = min(k, len(sentences))
+    # Generate embedding for the query sentence
+    query_embedding = model.encode(query_sentence).astype('float32').reshape(1, -1)  # Reshape to 2D array
+
+    # Search the index
     distances, indices = index.search(query_embedding, k)
+
+    # Retrieve and return the most similar sentences
     similar_sentences = [sentences[indices[0][i]] for i in range(k)]
-    return similar_sentences if similar_sentences else ["No exact match found."]
+    return similar_sentences
 
 # 6. Display Chat Messages
 for message in st.session_state.messages:
