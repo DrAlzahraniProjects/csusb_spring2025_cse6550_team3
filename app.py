@@ -210,7 +210,7 @@ def ai_to_ai_conversation():
 
         with st.spinner(f"Alpha is asking... ({i+1}/10)"):
             alpha_input = alpha_prompt.format(original_question)
-            response_alpha = chat.invoke(messages + [HumanMessage(content=alpha_input)])
+            response_alpha = chat.invoke([HumanMessage(content=alpha_input)])
             rephrased_question = response_alpha.content.strip()
             rephrased_question = rephrased_question.split('\n')[0].strip()
             messages.append(HumanMessage(content=rephrased_question))
@@ -233,7 +233,7 @@ def ai_to_ai_conversation():
             # Construct a more informative prompt for Beta
             beta_input = f"You are Beta, an AI assistant. Answer the following question using the given context:\n\nQuestion: {rephrased_question}\nContext: {context}\n\nProvide a clear, well-structured response based on the information available."
 
-            response_beta = chat.invoke(messages + [HumanMessage(content=beta_input)])
+            response_beta = chat.invoke([HumanMessage(content=beta_input)])
             beta_answer = response_beta.content.strip()
 
             messages.append(AIMessage(content=beta_answer))
