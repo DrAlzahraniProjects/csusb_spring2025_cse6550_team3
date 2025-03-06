@@ -227,6 +227,7 @@ def ai_to_ai_conversation():
 
         with st.spinner(f"Beta is responding... ({i+1}/10)"):
             similar_sentences = retrieve_similar_sentences(rephrased_question)
+
             context = " ".join(similar_sentences)  # Combine retrieved information
     
             # Construct a more informative prompt for Beta
@@ -234,6 +235,7 @@ def ai_to_ai_conversation():
 
             response_beta = chat.invoke(messages + [HumanMessage(content=beta_input)])
             beta_answer = response_beta.content.strip()
+
             messages.append(AIMessage(content=beta_answer))
 
         with beta_placeholder.chat_message("assistant"):
