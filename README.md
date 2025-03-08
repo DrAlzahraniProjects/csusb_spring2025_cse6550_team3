@@ -37,7 +37,7 @@ App - http://127.0.0.1:2503/team3s25
 google colab- https://colab.research.google.com/drive/1FfSykhH7YY8WYXm7fRexydGGmYQM_T9O?usp=sharing
 
 Alternatively, it can be accessed via the CSE department web server:
-https://sec.cse.csusb.edu/team13
+https://sec.cse.csusb.edu/team3s25/
 
 ### To stop the container from running and remove the container and image:
 7) Enable execute permissions for the Docker cleanup script::
