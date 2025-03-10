@@ -13,6 +13,14 @@ SPIDER_MODULES = ["mycrawler.spiders"]
 NEWSPIDER_MODULE = "mycrawler.spiders"
 
 
+# Set the maximum depth limit for crawling
+DEPTH_LIMIT = 3  # Change this to your desired depth limit
+
+FEED_EXPORTERS = {
+    'csv': 'mycrawler.exporters.HeadlessCsvItemExporter',
+}
+
+
 # Crawl responsibly by identifying yourself (and your website) on the user-agent
 #USER_AGENT = "mycrawler (+http://www.yourdomain.com)"
 
