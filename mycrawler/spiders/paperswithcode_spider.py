@@ -11,6 +11,11 @@ class PaperSpider(scrapy.Spider):
     processed_files_path = '/data/processed_files.json'
     processed_files = set()
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Counter for new PDFs processed in this run
+        self.new_pdf_count = 0
+
     def start_requests(self):
         print("Start requests --------------------")
         # Load the persisted set of processed URLs when the spider starts
@@ -37,10 +42,20 @@ class PaperSpider(scrapy.Spider):
         except Exception as e:
             print(f"Error saving processed files: {e}")
 
+        # Write if new PDFs were processed to a file
+        is_new__papers_path = '/data/is_new_pdfs.txt'
+        if self.new_pdf_count == 0:
+            with open(is_new__papers_path, 'w') as f:
+                f.write("0 No new PDFs were parsed during this run.")
+            print("Saved no-new-PDF info to disk.")
+        else:
+            with open(is_new__papers_path, 'w') as f:
+                f.write("1 New PDFs were parsed during this run.")
+            print("Saved new-PDF info to disk.")
+
     def parse(self, response):
         # Select the div with id 'task-papers-list'
         papers_div = response.css('div#task-papers-list')
-        # Loop over each paper entry (adjust the selector as needed)
         for paper in papers_div.css('a[href^="/paper/"]'):
             paper_link = response.urljoin(paper.attrib['href'])
             yield scrapy.Request(paper_link, callback=self.parse_paper)
@@ -61,11 +76,12 @@ class PaperSpider(scrapy.Spider):
         else:
             print(f"Not Skipping {pdf_url}")
 
-        # Extract the filename in a robust way
+        # Extract the filename robustly
         pdf_filename = pdf_url.split('/')[-1]
         if pdf_filename in ["2004.03500v2.pdf", "1708.09427v5.pdf"]:
-            # Mark the URL as processed now to avoid duplicate scheduling
+            # Mark the URL as processed and increment counter
             self.processed_files.add(pdf_url)
+            self.new_pdf_count += 1
             yield scrapy.Request(pdf_url, callback=self.parse_pdf)
         else:
             print(f"PDF {pdf_filename} did not match the criteria.")
