@@ -1,50 +1,74 @@
-# AI Research Helper Chatbot
-## Project Overview
-This AI Research Helper Chatbot is a Streamlit-based chatbot designed to assist researchers and students in finding relevant AI-related research papers, summarizing key concepts, and answering AI-related queries. It leverages LLM-based responses and retrieval-augmented generation (RAG) techniques to provide accurate and context-aware information.
-
 ## Prerequisites
-Install the following before you begin:  
-   [Git](https://git-scm.com/)  
-   [Docker](https://www.docker.com/)  
-   [WSL](https://learn.microsoft.com/en-us/windows/wsl/install)  
-  
-You must have a [Groq API Key](https://console.groq.com/keys) to run the app.  
-If you do not have one, it can be obtained from the Team 3 Discussion on Canvas.  
 
-## To create a simple, Dockerized web application:
-1) Clone this GitHub repository
+Before you begin, ensure you have the following:
+
+1. **Git**: [Install Git](https://git-scm.com/) from its official website.
+2. **Docker**: [Install Docker](https://www.docker.com) from its official website.
+3. **Linux/MacOS**: No extra setup needed.
+4. **Windows**: Install [WSL](https://learn.microsoft.com/en-us/windows/wsl/install) and enable
+
+---
+
+### Step 1: Clone the Repository
+
+Clone the GitHub repository to your local machine:
+
 ```
 git clone https://github.com/DrAlzahraniProjects/csusb_spring2025_cse6550_team3.git
 ```
-2) Navigate to the repository
+
+### Step 2: Navigate to the Repository
+
+Change to the cloned repository directory:
+
 ```
 cd csusb_spring2025_cse6550_team3 
 ```
-3) Ensure repository is updated to the latest version
+
+### Step 3: Pull the Latest Version
+
+Update the repository to the latest version:
+
 ```
 git pull origin main
 ```
-4) Enable execute permissions for the Docker setup script:
+
+### Step 4: Set Build Script
+
+Run the setup script to build and start the Docker container:
+
 ```
 chmod +x docker-setup.sh
 ```
-5) Run the script to build and run the Docker image (enter your Groq API Key when prompted):
+
+### Step 5: Run Build Script (enter your Groq API Key when prompted):
+
 ```
 ./docker-setup.sh
 ```
-6) Follow the following links to access the app:  
-App - http://127.0.0.1:2503/team3s25  
-google colab- https://colab.research.google.com/drive/1FfSykhH7YY8WYXm7fRexydGGmYQM_T9O?usp=sharing
+
+### Step 6: Access the Chatbot
+
+For Streamlit:
+
+- Once the container starts, Open browser at http://127.0.0.1:2503/team3s25
+  
+google colab:
+
+- https://colab.research.google.com/drive/1FfSykhH7YY8WYXm7fRexydGGmYQM_T9O?usp=sharing
 
 Alternatively, it can be accessed via the CSE department web server:
-https://sec.cse.csusb.edu/team3s25/
 
-### To stop the container from running and remove the container and image:
-7) Enable execute permissions for the Docker cleanup script::
+- https://sec.cse.csusb.edu/team3s25/
+
+### Step 7: Enable execute permissions for the Docker cleanup script:
+
 ```
 chmod +x docker-cleanup.sh
 ```
-8) Run the script to stop and remove the Docker image:
+
+### Step 8: Run the script to stop and remove the Docker image and container :
+
 ```
 ./docker-cleanup.sh
 ```
