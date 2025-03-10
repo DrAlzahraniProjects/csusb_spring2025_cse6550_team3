@@ -142,7 +142,7 @@ st.markdown("<h2 class='title'>TEAM3 Chatbot - AI Research Helper</h2>", unsafe_
 st.markdown("<p class='subtitle'>Welcome! Ask me about AI research, and I'll do my best to assist you.</p>", unsafe_allow_html=True)
 
 # Path to the output file in the mounted volume
-output_file_path = "/data/output.csv" 
+output_file_path = "/data/papers_output.csv" 
 
 df = pd.read_csv(output_file_path)
 
