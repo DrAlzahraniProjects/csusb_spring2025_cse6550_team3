@@ -2,9 +2,8 @@ jupyter
 streamlit
 langchain
 langchain[groq]
-pandas  # If you use pandas for confusion matrix or performance metrics calculations
+pandas
 PyPDF2
 langchain-huggingface
 scrapy
-faiss-gpu==1.7.2
-numpy==1.23.5
+faiss-cpu
