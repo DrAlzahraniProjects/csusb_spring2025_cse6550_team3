@@ -141,10 +141,22 @@ st.markdown('<div class="chat-container">', unsafe_allow_html=True)
 st.markdown("<h2 class='title'>TEAM3 Chatbot - AI Research Helper</h2>", unsafe_allow_html=True)
 st.markdown("<p class='subtitle'>Welcome! Ask me about AI research, and I'll do my best to assist you.</p>", unsafe_allow_html=True)
 
-# Path to the output file in the mounted volume
-output_file_path = "/data/papers_output.csv" 
+# Path to the output file
+output_file_path = "/data/papers_output.csv"
 
-df = pd.read_csv(output_file_path)
+# CSV and FAISS setup with fallback
+if not os.path.exists(output_file_path):
+    st.warning(f"'{output_file_path}' not found. Creating a default corpus.")
+    df = pd.DataFrame({"text": [
+        "The main advantage of Curvature-based Feature Selection (CFS) over PCA is that CFS selects features based on their relevance to the target variable, while PCA focuses on variance without considering class separability.",
+        "The Inception-ResNet-v2 model contributes to feature extraction in breast tumor classification by providing deep, hierarchical features from histopathological images, improving classification accuracy.",
+        "The key classifiers in the ensemble method for breast tumor classification are CatBoost, XGBoost, and LightGBM, chosen for their robustness, speed, and ability to handle imbalanced medical data.",
+        "Menger Curvature helps in ranking features in EHR data classification by measuring the geometric complexity of data points, prioritizing features with higher discriminative power.",
+        "The main challenges in handling missing data in medical datasets include imputation bias and data sparsity; the first paper addresses this using a curvature-based imputation technique."
+    ]})
+    df.to_csv(output_file_path, index=False)
+else:
+    df = pd.read_csv(output_file_path)
 
 if 'text' not in df.columns:
     raise ValueError("CSV file must have a 'text' column")
@@ -166,13 +178,42 @@ embeddings = model.encode(sentences).astype('float32')
 
 # Create a FAISS index
 index = faiss.IndexFlatL2(embeddings.shape[1])  # L2 distance
-index.add(embeddings)  # Add embeddings to the index
+index.add(embeddings)
 
-def retrieve_similar_sentences(query_sentence, k=1):
+def retrieve_similar_sentences(query_sentence, k=3):
+    """Retrieve top-k similar sentences from the corpus."""
     query_embedding = model.encode(query_sentence).astype('float32').reshape(1, -1)
     distances, indices = index.search(query_embedding, k)
-    similar_sentences = [sentences[indices[0][i]] for i in range(k)]
-    return similar_sentences
+    similar_sentences = [sentences[indices[0][i]] for i in range(min(k, len(indices[0])))]
+    return similar_sentences, distances[0].tolist()
+
+def rerank_sentences(query, sentences):
+    """Use LLM to re-rank retrieved sentences based on relevance to the query."""
+    rerank_prompt = (
+        "You are an AI tasked with ranking sentences based on their relevance to a query. "
+        "For each sentence, provide a relevance score between 0 and 1 (where 1 is highly relevant) "
+        "and a brief explanation. Return the results in this format:\n"
+        "Sentence: <sentence>\nScore: <score>\nExplanation: <explanation>\n\n"
+        "Query: '{}'\n\n"
+        "Sentences to rank:\n{}"
+    ).format(query, "\n".join([f"{i+1}. {s}" for i, s in enumerate(sentences)]))
+
+    response = chat.invoke([HumanMessage(content=rerank_prompt)])
+    reranked = []
+    
+    # Parse LLM response
+    lines = response.content.strip().split("\n")
+    for i in range(0, len(lines), 3):
+        try:
+            sentence = lines[i].replace("Sentence: ", "").strip()
+            score = float(lines[i+1].replace("Score: ", "").strip())
+            reranked.append((sentence, score))
+        except (IndexError, ValueError):
+            continue
+    
+    # Sort by score in descending order
+    reranked.sort(key=lambda x: x[1], reverse=True)
+    return reranked
 
 # 6. Display Chat Messages
 for message in st.session_state.messages:
@@ -196,12 +237,12 @@ with rating_area:
             st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
 
-# Updated ai_to_ai_conversation function
+# Updated ai_to_ai_conversation function with re-ranking
 def ai_to_ai_conversation():
     alpha_prompt = "You are Alpha, an AI researcher. Provide only the rephrased version of this question, keeping its meaning the same, without any additional text: '{}'"
     beta_prompt = "You are Beta, an AI assistant. Using the provided context, generate a concise answer to the following question: '{}'"
 
-    messages = [SystemMessage(content="This is an AI-to-AI conversation. Alpha will ask a question, and Beta will respond using the corpus as context.")]
+    messages = [SystemMessage(content="This is an AI-to-AI conversation. Alpha will ask a question, and Beta will respond using the re-ranked corpus context.")]
 
     st.session_state.conversation_history = []
 
@@ -211,8 +252,7 @@ def ai_to_ai_conversation():
         with st.spinner(f"Alpha is asking... ({i+1}/10)"):
             alpha_input = alpha_prompt.format(original_question)
             response_alpha = chat.invoke([HumanMessage(content=alpha_input)])
-            rephrased_question = response_alpha.content.strip()
-            rephrased_question = rephrased_question.split('\n')[0].strip()
+            rephrased_question = response_alpha.content.strip().split('\n')[0].strip()
             messages.append(HumanMessage(content=rephrased_question))
 
         with st.chat_message("user"):
@@ -226,15 +266,24 @@ def ai_to_ai_conversation():
         time.sleep(3)
 
         with st.spinner(f"Beta is responding... ({i+1}/10)"):
-            similar_sentences = retrieve_similar_sentences(rephrased_question)
-
-            context = " ".join(similar_sentences)  # Combine retrieved information
-    
-            # Construct a more informative prompt for Beta
-            beta_input = f"You are Beta, an AI assistant. Answer the following question using the given context:\n\nQuestion: {rephrased_question}\nContext: {context}\n\nProvide a clear, well-structured response based on the information available."
-
-            response_beta = chat.invoke([HumanMessage(content=beta_input)])
-            beta_answer = response_beta.content.strip()
+            # Step 1: Retrieve top-k similar sentences
+            similar_sentences, distances = retrieve_similar_sentences(rephrased_question, k=3)
+            
+            if not similar_sentences:
+                beta_answer = "No context available."
+            else:
+                # Step 2: Re-rank using LLM
+                reranked = rerank_sentences(rephrased_question, similar_sentences)
+                
+                # Step 3: Use top-ranked sentence(s) as context
+                if reranked:
+                    context = reranked[0][0]  # Use the top-ranked sentence
+                    beta_input = beta_prompt.format(rephrased_question)
+                    messages_to_send = [SystemMessage(content=f"Context: {context}"), HumanMessage(content=beta_input)]
+                    response_beta = chat.invoke(messages_to_send)
+                    beta_answer = response_beta.content.strip()
+                else:
+                    beta_answer = "No context available."
 
             messages.append(AIMessage(content=beta_answer))
 
@@ -266,13 +315,19 @@ for role, content in st.session_state.conversation_history:
 if st.button("Run AI-to-AI Conversation", key="run_conversation"):
     ai_to_ai_conversation()
 
-# 8. Chat Input at the Bottom
+# 8. Chat Input at the Bottom with Re-ranking
 user_input = st.chat_input("Type your message here...")
 if user_input:
     st.session_state.messages.append(HumanMessage(content=user_input))
-    similar_sentences = retrieve_similar_sentences(user_input)
-    context = " ".join(similar_sentences)
     with st.spinner("Thinking..."):
+        # Retrieve and re-rank for user input
+        similar_sentences, _ = retrieve_similar_sentences(user_input, k=3)
+        if not similar_sentences:
+            context = "No context available."
+        else:
+            reranked = rerank_sentences(user_input, similar_sentences)
+            context = reranked[0][0] if reranked else "No context available."
+        
         messages_to_send = st.session_state.messages + [SystemMessage(content=f"Context: {context}")]
         response = chat.invoke(messages_to_send)
         ai_message = AIMessage(content=response.content)
