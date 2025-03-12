@@ -172,7 +172,7 @@ def retrieve_similar_sentences(query_sentence, k=3):
     return similar_sentences, distances[0].tolist()
 
 def rerank_sentences(query, sentences):
-    """Use LLM to re-rank retrieved sentences based on relevance to the query."""
+    """Use LLM to re-rank retrieved sentences based on relevance to the query with retry on rate limit."""
     rerank_prompt = (
         "You are an AI tasked with ranking sentences based on their relevance to a query. "
         "For each sentence, provide a relevance score between 0 and 1 (where 1 is highly relevant) "
@@ -182,22 +182,39 @@ def rerank_sentences(query, sentences):
         "Sentences to rank:\n{}"
     ).format(query, "\n".join([f"{i+1}. {s}" for i, s in enumerate(sentences)]))
 
-    response = chat.invoke([HumanMessage(content=rerank_prompt)])
-    reranked = []
-    
-    # Parse LLM response
-    lines = response.content.strip().split("\n")
-    for i in range(0, len(lines), 3):
+    max_retries = 3
+    retry_delay = 60  # Wait 60 seconds to ensure TPM limit resets
+
+    for attempt in range(max_retries):
         try:
-            sentence = lines[i].replace("Sentence: ", "").strip()
-            score = float(lines[i+1].replace("Score: ", "").strip())
-            reranked.append((sentence, score))
-        except (IndexError, ValueError):
-            continue
+            response = chat.invoke([HumanMessage(content=rerank_prompt)])
+            reranked = []
+            
+            # Parse LLM response
+            lines = response.content.strip().split("\n")
+            for i in range(0, len(lines), 3):
+                try:
+                    sentence = lines[i].replace("Sentence: ", "").strip()
+                    score = float(lines[i+1].replace("Score: ", "").strip())
+                    reranked.append((sentence, score))
+                except (IndexError, ValueError):
+                    continue
+            
+            # Sort by score in descending order
+            reranked.sort(key=lambda x: x[1], reverse=True)
+            return reranked
+
+        except Exception as e:
+            if "Error code: 413" in str(e) and "rate_limit_exceeded" in str(e):
+                if attempt < max_retries - 1:
+                    st.warning(f"Rate limit exceeded. Waiting {retry_delay} seconds before retrying... (Attempt {attempt + 1}/{max_retries})")
+                    time.sleep(retry_delay)
+                    continue
+            # If not a rate limit error or max retries reached, raise the exception
+            raise e
     
-    # Sort by score in descending order
-    reranked.sort(key=lambda x: x[1], reverse=True)
-    return reranked
+    # If all retries fail, return an empty list to avoid breaking downstream logic
+    return []
 
 # 6. Display Chat Messages
 for message in st.session_state.messages:
@@ -221,7 +238,7 @@ with rating_area:
             st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
 
-# Updated ai_to_ai_conversation function with re-ranking
+# Updated ai_to_ai_conversation function with re-ranking restored and reduced delays
 def ai_to_ai_conversation():
     alpha_prompt = "You are Alpha, an AI researcher. Provide only the rephrased version of this question, keeping its meaning the same, without any additional text: '{}'"
     beta_prompt = "You are Beta, an AI assistant. Using the provided context, generate a concise answer to the following question: '{}'"
@@ -247,7 +264,8 @@ def ai_to_ai_conversation():
         with beta_placeholder.chat_message("assistant"):
             st.write("**Beta:** Thinking...")
 
-        time.sleep(3)
+        # Reduced delay to 0.5 seconds to keep total time closer to 1 second
+        time.sleep(0.5)
 
         with st.spinner(f"Beta is responding... ({i+1}/10)"):
             # Step 1: Retrieve top-k similar sentences
@@ -256,7 +274,7 @@ def ai_to_ai_conversation():
             if not similar_sentences:
                 beta_answer = "No context available."
             else:
-                # Step 2: Re-rank using LLM
+                # Step 2: Re-rank using LLM (restored as original)
                 reranked = rerank_sentences(rephrased_question, similar_sentences)
                 
                 # Step 3: Use top-ranked sentence(s) as context
@@ -286,7 +304,7 @@ def ai_to_ai_conversation():
             st.session_state.conf_matrix[1, 0] += 1  # FP
 
         if i < len(original_questions) - 1:
-            time.sleep(2)
+            time.sleep(0.5)  # Reduced from 2 to 0.5 seconds between questions
 
     st.success("AI-to-AI conversation completed!")
 
