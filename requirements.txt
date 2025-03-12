@@ -6,4 +6,4 @@ pandas
 PyPDF2
 langchain-huggingface
 scrapy
-faiss-cpu 
+faiss-cpu

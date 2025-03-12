@@ -30,7 +30,7 @@ if [ $(docker ps -q -f name=$CONTAINER_NAME) ]; then
 fi
 
 # Running Docker Image
-docker run -d -p $PORT_NUM:$PORT_NUM -p $J_PORTNUM:$J_PORTNUM --name $CONTAINER_NAME -e GROQ_API_KEY="$GROQ_API_KEY" $CONTAINER_NAME
+docker run -d -p $PORT_NUM:$PORT_NUM -p $J_PORTNUM:$J_PORTNUM --name $CONTAINER_NAME -e GROQ_API_KEY="$GROQ_API_KEY" -v scrapy_output:/data $CONTAINER_NAME
  
 # Output where the apps are running
 echo "Streamlit is available at: http://localhost:$PORT_NUM/team3s25"
