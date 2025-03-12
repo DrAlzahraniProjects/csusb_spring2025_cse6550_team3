@@ -143,23 +143,7 @@ st.markdown("<p class='subtitle'>Welcome! Ask me about AI research, and I'll do 
 
 # Path to the output file
 output_file_path = "/data/papers_output.csv"
-
-# CSV and FAISS setup with fallback
-if not os.path.exists(output_file_path):
-    st.warning(f"'{output_file_path}' not found. Creating a default corpus.")
-    df = pd.DataFrame({"text": [
-        "The main advantage of Curvature-based Feature Selection (CFS) over PCA is that CFS selects features based on their relevance to the target variable, while PCA focuses on variance without considering class separability.",
-        "The Inception-ResNet-v2 model contributes to feature extraction in breast tumor classification by providing deep, hierarchical features from histopathological images, improving classification accuracy.",
-        "The key classifiers in the ensemble method for breast tumor classification are CatBoost, XGBoost, and LightGBM, chosen for their robustness, speed, and ability to handle imbalanced medical data.",
-        "Menger Curvature helps in ranking features in EHR data classification by measuring the geometric complexity of data points, prioritizing features with higher discriminative power.",
-        "The main challenges in handling missing data in medical datasets include imputation bias and data sparsity; the first paper addresses this using a curvature-based imputation technique."
-    ]})
-    df.to_csv(output_file_path, index=False)
-else:
-    df = pd.read_csv(output_file_path)
-
-if 'text' not in df.columns:
-    raise ValueError("CSV file must have a 'text' column")
+df = pd.read_csv(output_file_path)
 
 sentences = df['text'].tolist()
 
