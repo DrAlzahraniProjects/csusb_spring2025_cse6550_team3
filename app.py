@@ -207,7 +207,6 @@ if os.path.exists(is_new__papers_path):
                     is_new_vector_database = True
     except Exception as e:
         print(f"Error saving processed files: {e}")
-
     
 if is_new_vector_database:
     create_vector_database()
@@ -229,17 +228,65 @@ else:
     else:
         create_vector_database()
 
-def retrieve_similar_sentences(query_sentence, k=1):
+
+def retrieve_similar_sentences(query_sentence, k=3):
+    """Retrieve top-k similar sentences from the corpus."""
     query_embedding = model.encode(query_sentence).astype('float32').reshape(1, -1)
     distances, indices = index.search(query_embedding, k)
-    similar_sentences = [chunks[indices[0][i]] for i in range(k)]
-    return similar_sentences
+    similar_sentences = [chunks[indices[0][i]] for i in range(min(k, len(indices[0])))]
+    return similar_sentences, distances[0].tolist()
+
+def rerank_sentences(query, sentences):
+    """Use LLM to re-rank retrieved sentences based on relevance to the query with retry on rate limit."""
+    rerank_prompt = (
+        "You are an AI tasked with ranking sentences based on their relevance to a query. "
+        "For each sentence, provide a relevance score between 0 and 1 (where 1 is highly relevant) "
+        "and a brief explanation. Return the results in this format:\n"
+        "Sentence: <sentence>\nScore: <score>\nExplanation: <explanation>\n\n"
+        "Query: '{}'\n\n"
+        "Sentences to rank:\n{}"
+    ).format(query, "\n".join([f"{i+1}. {s}" for i, s in enumerate(sentences)]))
+
+    max_retries = 3
+    retry_delay = 60  # Wait 60 seconds to ensure TPM limit resets
+
+    for attempt in range(max_retries):
+        try:
+            response = chat.invoke([HumanMessage(content=rerank_prompt)])
+            reranked = []
+            
+            # Parse LLM response
+            lines = response.content.strip().split("\n")
+            for i in range(0, len(lines), 3):
+                try:
+                    sentence = lines[i].replace("Sentence: ", "").strip()
+                    score = float(lines[i+1].replace("Score: ", "").strip())
+                    reranked.append((sentence, score))
+                except (IndexError, ValueError):
+                    continue
+            
+            # Sort by score in descending order
+            reranked.sort(key=lambda x: x[1], reverse=True)
+            return reranked
+
+        except Exception as e:
+            if "Error code: 413" in str(e) and "rate_limit_exceeded" in str(e):
+                if attempt < max_retries - 1:
+                    st.warning(f"Rate limit exceeded. Waiting {retry_delay} seconds before retrying... (Attempt {attempt + 1}/{max_retries})")
+                    time.sleep(retry_delay)
+                    continue
+            # If not a rate limit error or max retries reached, raise the exception
+            raise e
+    
+    # If all retries fail, return an empty list to avoid breaking downstream logic
+    return []
 
 # 7. Display Chat Messages
 for message in st.session_state.messages:
     role = "user" if isinstance(message, HumanMessage) else "assistant"
     with st.chat_message(role):
         st.write(message.content)
+
 
 # 8. Display AI-to-AI Conversation History
 for role, content in st.session_state.conversation_history:
@@ -264,7 +311,7 @@ if st.button("Start AI-to-AI Conversation", key="run_conversation", help="Click 
         alpha_prompt = "You are Alpha, an AI researcher. Provide only the rephrased version of this question, keeping its meaning the same, without any additional text: '{}'"
         beta_prompt = "You are Beta, an AI assistant. Using the provided context, generate a concise answer to the following question: '{}'"
     
-        messages = [SystemMessage(content="This is an AI-to-AI conversation. Alpha will ask a question, and Beta will respond using the corpus as context.")]
+        messages = [SystemMessage(content="This is an AI-to-AI conversation. Alpha will ask a question, and Beta will respond using the re-ranked corpus context.")]
         st.session_state.conversation_history = []
     
         for i, original_question in enumerate(original_questions):
@@ -283,15 +330,29 @@ if st.button("Start AI-to-AI Conversation", key="run_conversation", help="Click 
             with beta_placeholder.chat_message("assistant"):
                 st.write("**Beta:** Thinking...")
     
-            time.sleep(3)
+            time.sleep(1.5)
     
             with st.spinner(f"Beta is responding... ({i+1}/10)"):
-                similar_sentences = retrieve_similar_sentences(rephrased_question)
-                context = " ".join(similar_sentences)
-                beta_input = f"You are Beta, an AI assistant. Answer the following question using the given context:\n\nQuestion: {rephrased_question}\nContext: {context}\n\nProvide a clear, well-structured response based on the information available."
-                response_beta = chat.invoke([HumanMessage(content=beta_input)])
-                beta_answer = response_beta.content.strip()
-                messages.append(AIMessage(content=beta_answer))
+              # Step 1: Retrieve top-k similar sentences
+              similar_sentences, distances = retrieve_similar_sentences(rephrased_question, k=3)
+            
+              if not similar_sentences:
+                  beta_answer = "No context available."
+              else:
+                  # Step 2: Re-rank using LLM (restored as original)
+                  reranked = rerank_sentences(rephrased_question, similar_sentences)
+
+                  # Step 3: Use top-ranked sentence(s) as context
+                  if reranked:
+                      context = reranked[0][0]  # Use the top-ranked sentence
+                      beta_input = beta_prompt.format(rephrased_question)
+                      messages_to_send = [SystemMessage(content=f"Context: {context}"), HumanMessage(content=beta_input)]
+                      response_beta = chat.invoke(messages_to_send)
+                      beta_answer = response_beta.content.strip()
+                  else:
+                      beta_answer = "No context available."
+
+            messages.append(AIMessage(content=beta_answer))
     
             with beta_placeholder.chat_message("assistant"):
                 st.write(f"**Beta:** {beta_answer}")
@@ -308,7 +369,7 @@ if st.button("Start AI-to-AI Conversation", key="run_conversation", help="Click 
                 st.session_state.conf_matrix[1, 0] += 1  # FP
     
             if i < len(original_questions) - 1:
-                time.sleep(2)
+                time.sleep(0.5)
     
         st.success("AI-to-AI conversation completed!")
     
@@ -318,9 +379,15 @@ if st.button("Start AI-to-AI Conversation", key="run_conversation", help="Click 
 user_input = st.chat_input("Type your message here...")
 if user_input:
     st.session_state.messages.append(HumanMessage(content=user_input))
-    similar_sentences = retrieve_similar_sentences(user_input)
-    context = " ".join(similar_sentences)
     with st.spinner("Thinking..."):
+        # Retrieve and re-rank for user input
+        similar_sentences, _ = retrieve_similar_sentences(user_input, k=3)
+        if not similar_sentences:
+            context = "No context available."
+        else:
+            reranked = rerank_sentences(user_input, similar_sentences)
+            context = reranked[0][0] if reranked else "No context available."
+        
         messages_to_send = st.session_state.messages + [SystemMessage(content=f"Context: {context}")]
         response = chat.invoke(messages_to_send)
         ai_message = AIMessage(content=response.content)
