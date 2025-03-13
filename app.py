@@ -9,46 +9,36 @@ from sentence_transformers import SentenceTransformer
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 import time
 
-# Predefined questions
-original_questions = [
-    "What is the main advantage of using Curvature-based Feature Selection (CFS) over PCA for dimensionality reduction?",
-    "How does the Inception-ResNet-v2 model contribute to feature extraction in breast tumor classification?",
-    "What are the key classifiers used in the ensemble method for breast tumor classification, and why were they chosen?",
-    "How does Menger Curvature help in ranking features in Electronic Health Records (EHR) data classification?",
-    "What are the main challenges in handling missing data in medical datasets, and how does the first paper address this issue?",
-    "How does the performance of CFS compare to other feature selection methods on completely different datasets outside the ones mentioned?",
-    "What specific preprocessing steps were used for data normalization in each classification experiment?",
-    "How would the proposed breast cancer classification model perform on a realtime clinical setup?",
-    "Can the Curvature-based Feature Selection method be adapted to non-medical domains like finance or cybersecurity?",
-    "How does the ensemble of CatBoost, XGBoost, and LightGBM compare to deep learning models trained end-to-end on histopathology images?"
-]
-
-# 1. Check for API Key
-api_key = os.getenv("GROQ_API_KEY")
-if not api_key:
-    st.error("Please set your GROQ_API_KEY environment variable.")
-    st.stop()
-
-# 2. Initialize Chat Model
-chat = init_chat_model("llama3-8b-8192", model_provider="groq")
-
-# 3. Initialize Session State
-if "messages" not in st.session_state:
-    st.session_state.messages = [
-        SystemMessage(content="Hey, I'm an AI research helper. Feel free to ask me anything about AI research.")
-    ]
-if "conf_matrix" not in st.session_state:
-    st.session_state.conf_matrix = np.zeros((2, 2), dtype=int)
-if "conversation_history" not in st.session_state:
-    st.session_state.conversation_history = []
-
-# 4. Apply Custom CSS (unchanged)
+# ------------------- Custom CSS for Light/Dark Mode and Unified Button Styling -------------------
 st.markdown(
     """
     <style>
+    /* Light mode variables */
+    :root {
+        --background-color: #F5F8FA;
+        --text-color: #333333;
+        --subtitle-color: #555555;
+        --button-bg: transparent;
+        --button-text: red;      /* Red text in light mode */
+        --button-border: red;    /* Red border in light mode */
+        --hover-bg: rgba(255, 0, 0, 0.1);
+    }
+    /* Dark mode variables */
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --background-color: #121212;
+            --text-color: #E0E0E0;
+            --subtitle-color: #B0B0B0;
+            --button-bg: transparent;
+            --button-text: red;    /* Red text in dark mode */
+            --button-border: red;  /* Red border in dark mode */
+            --hover-bg: rgba(255, 0, 0, 0.1);
+        }
+    }
+    
     body, .main {
-        background-color: #F5F8FA;
-        color: #333;
+        background-color: var(--background-color);
+        color: var(--text-color);
     }
     .chat-container {
         max-width: 700px;
@@ -58,13 +48,13 @@ st.markdown(
     .title {
         font-family: "Helvetica Neue", Arial, sans-serif;
         text-align: center;
-        color: #333333;
+        color: var(--text-color);
         font-size: 1.8rem;
     }
     .subtitle {
         font-family: "Helvetica", sans-serif;
         text-align: center;
-        color: #555555;
+        color: var(--subtitle-color);
         margin-bottom: 1.5rem;
         font-size: 1rem;
     }
@@ -74,101 +64,176 @@ st.markdown(
         padding: 0 !important;
         margin: 0 !important;
     }
-    .stChatMessageUser .stMarkdown {
-        background-color: #0078D4;
-        color: #FFFFFF;
-        padding: 8px 12px;
-        border-radius: 8px;
-        display: inline-block;
-        max-width: 80%;
-        margin: 6px 0;
-    }
+    /* Chat bubbles for both user and assistant use a transparent background with a border */
+    .stChatMessageUser .stMarkdown, 
     .stChatMessageAssistant .stMarkdown {
-        background-color: #E9ECEF;
-        color: #333333;
+        background-color: transparent;
+        color: var(--text-color);
         padding: 8px 12px;
+        border: 1px solid var(--text-color);
         border-radius: 8px;
         display: inline-block;
         max-width: 80%;
         margin: 6px 0;
     }
     .stTextInput>div>div>input {
-        background-color: #FFFFFF;
-        color: #333333;
+        background-color: var(--background-color);
+        color: var(--text-color);
         border: 1px solid #CCCCCC;
         border-radius: 8px;
         padding: 10px;
         font-size: 16px;
     }
-    .rating-container {
-        display: flex;
-        flex-direction: row;
-        gap: 0.5rem;
-        margin: 1rem 0;
-    }
-    .rating-button {
-        background-color: #0078D4;
-        color: #FFFFFF;
-        font-size: 12px;
-        padding: 0.3rem 1rem;
-        border: none;
-        border-radius: 8px;
-        cursor: pointer;
-        transition: background-color 0.3s;
-    }
-    .rating-button:hover {
-        background-color: #005999;
-    }
+    /* Unified button styling for all buttons */
     .stButton>button {
-        background-color: #0078D4;
-        color: #FFFFFF;
-        font-size: 14px;
-        border-radius: 6px;
-        padding: 0.4rem 1rem;
-        border: none;
-        margin-top: 10px;
+        background-color: var(--button-bg);
+        color: var(--button-text);
+        border: 2px solid var(--button-border);
+        border-radius: 10px;
+        padding: 10px 20px;
+        font-size: 16px;
+        cursor: pointer;
+        transition: background-color 0.3s ease, color 0.3s ease;
     }
     .stButton>button:hover {
-        background-color: #005999;
+        background-color: var(--hover-bg);
+    }
+    /* Sidebar button styling to match the main buttons */
+    .stSidebar .stButton>button {
+        background-color: var(--button-bg);
+        color: var(--button-text);
+        border: 2px solid var(--button-border);
+        border-radius: 10px;
+        padding: 10px 20px;
+        font-size: 16px;
+        cursor: pointer;
+        transition: background-color 0.3s ease, color 0.3s ease;
+    }
+    .stSidebar .stButton>button:hover {
+        background-color: var(--hover-bg);
     }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-# 5. Page Layout
+# ------------------- Main App Code -------------------
+
+# 1. Check for API Key
+api_key = os.getenv("GROQ_API_KEY")
+if not api_key:
+    st.error("Please set your GROQ_API_KEY environment variable.")
+    st.stop()
+
+# 2. Initialize the Chat Model
+chat = init_chat_model("llama3-8b-8192", model_provider="groq")
+
+# 3. Initialize Session State Variables
+if "messages" not in st.session_state:
+    st.session_state.messages = [
+        SystemMessage(content="Hey, I'm an AI research helper. Feel free to ask me anything about AI research.")
+    ]
+if "conf_matrix" not in st.session_state:
+    st.session_state.conf_matrix = np.zeros((2, 2), dtype=int)
+if "conversation_history" not in st.session_state:
+    st.session_state.conversation_history = []
+if "last_ai_response" not in st.session_state:
+    st.session_state.last_ai_response = None
+
+# 4. Layout the Main Chat Container
 st.markdown('<div class="chat-container">', unsafe_allow_html=True)
 st.markdown("<h2 class='title'>TEAM3 Chatbot - AI Research Helper</h2>", unsafe_allow_html=True)
 st.markdown("<p class='subtitle'>Welcome! Ask me about AI research, and I'll do my best to assist you.</p>", unsafe_allow_html=True)
 
-# Path to the output file
-output_file_path = "/data/papers_output.csv"
-df = pd.read_csv(output_file_path)
+is_new__papers_path = "/data/is_new_pdfs.txt"
+faiss_index_file_path = "/data/faiss_index.index"
+chunks_file_path = "/data/chunks.txt"
+is_new_vector_database = True
+model = None
+index = None
+chunks = []
 
-sentences = df['text'].tolist()
 
-# Combine all sentences into a single text string (if needed)
-csv_text = " ".join(sentences)
+def create_vector_database():
+    global model, chunks, index
+    # Path to the output file in the mounted volume
+    output_file_path = "/data/papers_output.csv" 
 
-# Split text into smaller chunks for better embedding and retrieval
-text_splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=50)
-chunks = text_splitter.split_text(csv_text)
+    df = pd.read_csv(output_file_path)
 
-# Load a pre-trained sentence embedding model
-model = SentenceTransformer('all-MiniLM-L6-v2')
+    if 'text' not in df.columns:
+        raise ValueError("CSV file must have a 'text' column")
 
-# Generate embeddings for the sentences
-embeddings = model.encode(sentences).astype('float32')
+    sentences = df['text'].tolist()
 
-# Create a FAISS index
-index = faiss.IndexFlatL2(embeddings.shape[1])  # L2 distance
-index.add(embeddings)
+    # Combine all sentences into a single text string (if needed)
+    csv_text = " ".join(sentences)
+
+    # Split text into smaller chunks for better embedding and retrieval
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=50)
+    chunks = text_splitter.split_text(csv_text)
+
+    # Load a pre-trained sentence embedding model
+    model = SentenceTransformer('all-MiniLM-L6-v2')
+
+    # Open the file in write mode
+    with open(chunks_file_path, 'w') as f:
+        for chunk in chunks:
+            f.write(chunk + '\n')  # Write each chunk on a new line
+
+    # Generate embeddings for the sentences
+    embeddings = model.encode(chunks).astype('float32')
+
+    # Create a FAISS index
+    index = faiss.IndexFlatL2(embeddings.shape[1])  # L2 distance
+    index.add(embeddings)  # Add embeddings to the index
+    faiss.write_index(index, faiss_index_file_path)
+
+#check if vector database already exists
+# Load the persisted set of processed URLs when the spider starts
+if os.path.exists(is_new__papers_path):
+    try:
+        # Open the text file
+        with open(is_new__papers_path, mode='r') as txtfile:
+            first_line = txtfile.readline().strip()  # Read the first line and strip whitespace
+            if first_line:  # Check if the line is not empty
+                first_char = first_line[0]
+
+                if first_char == '0':
+                    #Load the vector database
+                    is_new_vector_database = False
+                elif first_char == '1':
+                    #Make a new vector database
+                    is_new_vector_database = True
+    except Exception as e:
+        print(f"Error saving processed files: {e}")
+    
+if is_new_vector_database:
+    create_vector_database()
+else:
+    if os.path.exists(faiss_index_file_path):
+        # Load a pre-trained sentence embedding model
+        model = SentenceTransformer('all-MiniLM-L6-v2')
+
+        #Load chunks
+        # Open the file in read mode
+        with open(chunks_file_path, 'r') as f:
+            # Read each line from the file
+            for line in f:
+                # Strip the newline character and add the line to the chunks list
+                chunks.append(line.strip())
+
+        #Load a saved FAISS index
+        index = faiss.read_index(faiss_index_file_path)
+    else:
+        create_vector_database()
+
 
 def retrieve_similar_sentences(query_sentence, k=3):
     """Retrieve top-k similar sentences from the corpus."""
     query_embedding = model.encode(query_sentence).astype('float32').reshape(1, -1)
     distances, indices = index.search(query_embedding, k)
-    similar_sentences = [sentences[indices[0][i]] for i in range(min(k, len(indices[0])))]
+    similar_sentences = [chunks[indices[0][i]] for i in range(min(k, len(indices[0])))]
     return similar_sentences, distances[0].tolist()
 
 def rerank_sentences(query, sentences):
@@ -216,108 +281,101 @@ def rerank_sentences(query, sentences):
     # If all retries fail, return an empty list to avoid breaking downstream logic
     return []
 
-# 6. Display Chat Messages
+# 7. Display Chat Messages
 for message in st.session_state.messages:
     role = "user" if isinstance(message, HumanMessage) else "assistant"
     with st.chat_message(role):
         st.write(message.content)
 
-# 7. Rating Container
-st.write("#### Rate the Latest Chatbot Response")
-rating_area = st.container()
-with rating_area:
-    st.markdown("<div class='rating-container'>", unsafe_allow_html=True)
-    col1, col2 = st.columns([1, 1])
-    with col1:
-        if st.button("Correct ✅", key="correct_btn", help="Mark the last response as Correct"):
-            st.session_state.conf_matrix[0, 0] += 1
-            st.rerun()
-    with col2:
-        if st.button("Incorrect ❌", key="incorrect_btn", help="Mark the last response as Incorrect"):
-            st.session_state.conf_matrix[0, 1] += 1
-            st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
 
-# Updated ai_to_ai_conversation function with re-ranking restored and reduced delays
-def ai_to_ai_conversation():
-    alpha_prompt = "You are Alpha, an AI researcher. Provide only the rephrased version of this question, keeping its meaning the same, without any additional text: '{}'"
-    beta_prompt = "You are Beta, an AI assistant. Using the provided context, generate a concise answer to the following question: '{}'"
-
-    messages = [SystemMessage(content="This is an AI-to-AI conversation. Alpha will ask a question, and Beta will respond using the re-ranked corpus context.")]
-
-    st.session_state.conversation_history = []
-
-    for i, original_question in enumerate(original_questions):
-        is_answerable = i < 5
-
-        with st.spinner(f"Alpha is asking... ({i+1}/10)"):
-            alpha_input = alpha_prompt.format(original_question)
-            response_alpha = chat.invoke([HumanMessage(content=alpha_input)])
-            rephrased_question = response_alpha.content.strip().split('\n')[0].strip()
-            messages.append(HumanMessage(content=rephrased_question))
-
-        with st.chat_message("user"):
-            st.write(f"**Alpha:** {rephrased_question}")
-        st.session_state.conversation_history.append(("user", f"**Alpha:** {rephrased_question}"))
-
-        beta_placeholder = st.empty()
-        with beta_placeholder.chat_message("assistant"):
-            st.write("**Beta:** Thinking...")
-
-        # Reduced delay to 0.5 seconds to keep total time closer to 1 second
-        time.sleep(0.5)
-
-        with st.spinner(f"Beta is responding... ({i+1}/10)"):
-            # Step 1: Retrieve top-k similar sentences
-            similar_sentences, distances = retrieve_similar_sentences(rephrased_question, k=3)
-            
-            if not similar_sentences:
-                beta_answer = "No context available."
-            else:
-                # Step 2: Re-rank using LLM (restored as original)
-                reranked = rerank_sentences(rephrased_question, similar_sentences)
-                
-                # Step 3: Use top-ranked sentence(s) as context
-                if reranked:
-                    context = reranked[0][0]  # Use the top-ranked sentence
-                    beta_input = beta_prompt.format(rephrased_question)
-                    messages_to_send = [SystemMessage(content=f"Context: {context}"), HumanMessage(content=beta_input)]
-                    response_beta = chat.invoke(messages_to_send)
-                    beta_answer = response_beta.content.strip()
-                else:
-                    beta_answer = "No context available."
-
-            messages.append(AIMessage(content=beta_answer))
-
-        with beta_placeholder.chat_message("assistant"):
-            st.write(f"**Beta:** {beta_answer}")
-        st.session_state.conversation_history.append(("assistant", f"**Beta:** {beta_answer}"))
-
-        # Update confusion matrix
-        if is_answerable and "No context available" not in beta_answer:
-            st.session_state.conf_matrix[0, 0] += 1  # TP
-        elif is_answerable and "No context available" in beta_answer:
-            st.session_state.conf_matrix[0, 1] += 1  # FN
-        elif not is_answerable and "No context available" in beta_answer:
-            st.session_state.conf_matrix[1, 1] += 1  # TN
-        else:
-            st.session_state.conf_matrix[1, 0] += 1  # FP
-
-        if i < len(original_questions) - 1:
-            time.sleep(0.5)  # Reduced from 2 to 0.5 seconds between questions
-
-    st.success("AI-to-AI conversation completed!")
-
-# Display conversation history
+# 8. Display AI-to-AI Conversation History
 for role, content in st.session_state.conversation_history:
     with st.chat_message(role):
         st.write(content)
 
-# Run AI-to-AI dialogue when triggered
-if st.button("Run AI-to-AI Conversation", key="run_conversation"):
+# 9. "Start AI-to-AI Conversation" Button (Unified Styling)
+if st.button("Start AI-to-AI Conversation", key="run_conversation", help="Click to start AI-to-AI conversation"):
+    def ai_to_ai_conversation():
+        original_questions = [
+            "What is the main advantage of using Curvature-based Feature Selection (CFS) over PCA for dimensionality reduction?",
+            "How does the Inception-ResNet-v2 model contribute to feature extraction in breast tumor classification?",
+            "What are the key classifiers used in the ensemble method for breast tumor classification, and why were they chosen?",
+            "How does Menger Curvature help in ranking features in Electronic Health Records (EHR) data classification?",
+            "What are the main challenges in handling missing data in medical datasets, and how does the first paper address this issue?",
+            "How does the performance of CFS compare to other feature selection methods on completely different datasets outside the ones mentioned?",
+            "What specific preprocessing steps were used for data normalization in each classification experiment?",
+            "How would the proposed breast cancer classification model perform on a realtime clinical setup?",
+            "Can the Curvature-based Feature Selection method be adapted to non-medical domains like finance or cybersecurity?",
+            "How does the ensemble of CatBoost, XGBoost, and LightGBM compare to deep learning models trained end-to-end on histopathology images?"
+        ]
+        alpha_prompt = "You are Alpha, an AI researcher. Provide only the rephrased version of this question, keeping its meaning the same, without any additional text: '{}'"
+        beta_prompt = "You are Beta, an AI assistant. Using the provided context, generate a concise answer to the following question: '{}'"
+    
+        messages = [SystemMessage(content="This is an AI-to-AI conversation. Alpha will ask a question, and Beta will respond using the re-ranked corpus context.")]
+        st.session_state.conversation_history = []
+    
+        for i, original_question in enumerate(original_questions):
+            is_answerable = i < 5
+            with st.spinner(f"Alpha is asking... ({i+1}/10)"):
+                alpha_input = alpha_prompt.format(original_question)
+                response_alpha = chat.invoke([HumanMessage(content=alpha_input)])
+                rephrased_question = response_alpha.content.strip().split('\n')[0].strip()
+                messages.append(HumanMessage(content=rephrased_question))
+    
+            with st.chat_message("user"):
+                st.write(f"**Alpha:** {rephrased_question}")
+            st.session_state.conversation_history.append(("user", f"**Alpha:** {rephrased_question}"))
+    
+            beta_placeholder = st.empty()
+            with beta_placeholder.chat_message("assistant"):
+                st.write("**Beta:** Thinking...")
+    
+            time.sleep(1.5)
+    
+            with st.spinner(f"Beta is responding... ({i+1}/10)"):
+              # Step 1: Retrieve top-k similar sentences
+              similar_sentences, distances = retrieve_similar_sentences(rephrased_question, k=3)
+            
+              if not similar_sentences:
+                  beta_answer = "No context available."
+              else:
+                  # Step 2: Re-rank using LLM (restored as original)
+                  reranked = rerank_sentences(rephrased_question, similar_sentences)
+
+                  # Step 3: Use top-ranked sentence(s) as context
+                  if reranked:
+                      context = reranked[0][0]  # Use the top-ranked sentence
+                      beta_input = beta_prompt.format(rephrased_question)
+                      messages_to_send = [SystemMessage(content=f"Context: {context}"), HumanMessage(content=beta_input)]
+                      response_beta = chat.invoke(messages_to_send)
+                      beta_answer = response_beta.content.strip()
+                  else:
+                      beta_answer = "No context available."
+
+            messages.append(AIMessage(content=beta_answer))
+    
+            with beta_placeholder.chat_message("assistant"):
+                st.write(f"**Beta:** {beta_answer}")
+            st.session_state.conversation_history.append(("assistant", f"**Beta:** {beta_answer}"))
+    
+            # Update confusion matrix
+            if is_answerable and "No context available" not in beta_answer:
+                st.session_state.conf_matrix[0, 0] += 1  # TP
+            elif is_answerable and "No context available" in beta_answer:
+                st.session_state.conf_matrix[0, 1] += 1  # FN
+            elif not is_answerable and "No context available" in beta_answer:
+                st.session_state.conf_matrix[1, 1] += 1  # TN
+            else:
+                st.session_state.conf_matrix[1, 0] += 1  # FP
+    
+            if i < len(original_questions) - 1:
+                time.sleep(0.5)
+    
+        st.success("AI-to-AI conversation completed!")
+    
     ai_to_ai_conversation()
 
-# 8. Chat Input at the Bottom with Re-ranking
+# 10. Chat Input at the Bottom
 user_input = st.chat_input("Type your message here...")
 if user_input:
     st.session_state.messages.append(HumanMessage(content=user_input))
@@ -334,11 +392,31 @@ if user_input:
         response = chat.invoke(messages_to_send)
         ai_message = AIMessage(content=response.content)
         st.session_state.messages.append(ai_message)
+        st.session_state.last_ai_response = ai_message.content  # Save latest AI response for rating
     st.rerun()
+
+# 11. Display Rating Buttons Below Chat Input (Unified Styling)
+if st.session_state.last_ai_response:
+    rating_placeholder = st.empty()
+    with rating_placeholder:
+        st.markdown("### Rate the AI's Latest Response:")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("✅ Correct", key="correct"):
+                st.session_state.conf_matrix[0, 0] += 1
+                st.session_state.last_ai_response = None  # Hide rating buttons after rating
+                st.success("Thank you for your feedback!")
+                st.rerun()
+        with col2:
+            if st.button("❌ Incorrect", key="incorrect"):
+                st.session_state.conf_matrix[0, 1] += 1
+                st.session_state.last_ai_response = None  # Hide rating buttons after rating
+                st.warning("Thank you for your feedback! We will improve.")
+                st.rerun()
 
 st.markdown("</div>", unsafe_allow_html=True)
 
-# Sidebar with reset button
+# 12. Sidebar: Display Confusion Matrix and Metrics
 st.sidebar.write("### Confusion Matrix")
 cm_df = pd.DataFrame(
     st.session_state.conf_matrix,
@@ -351,7 +429,6 @@ TP = st.session_state.conf_matrix[0, 0]
 FN = st.session_state.conf_matrix[0, 1]
 FP = st.session_state.conf_matrix[1, 0]
 TN = st.session_state.conf_matrix[1, 1]
-
 sensitivity = TP / (TP + FN) if (TP + FN) else 0
 specificity = TN / (TN + FP) if (TN + FP) else 0
 accuracy = (TP + TN) / np.sum(st.session_state.conf_matrix) if np.sum(st.session_state.conf_matrix) else 0
