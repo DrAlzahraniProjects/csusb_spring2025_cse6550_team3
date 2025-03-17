@@ -350,7 +350,10 @@ if st.button("Start AI-to-AI Conversation", key="run_conversation", help="Click 
                       response_beta = chat.invoke(messages_to_send)
                       beta_answer = response_beta.content.strip()
                   else:
-                      beta_answer = "No context available."
+                      beta_input = beta_prompt.format(rephrased_question)
+                      messages_to_send = [SystemMessage(content=f"Context: {similar_sentences}"), HumanMessage(content=beta_input)]
+                      response_beta = chat.invoke(messages_to_send)
+                      beta_answer = response_beta.content.strip()
 
             messages.append(AIMessage(content=beta_answer))
     
