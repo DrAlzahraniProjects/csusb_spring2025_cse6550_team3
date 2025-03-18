@@ -1,4 +1,3 @@
-jupyter
 streamlit
 langchain
 langchain[groq]

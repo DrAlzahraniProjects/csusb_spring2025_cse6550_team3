@@ -1,0 +1,926 @@
+text
+"Deep Learning to Improve Breast Cancer Early
+Detection on Screening Mammography
+Li Shen
+Department of Neuroscience
+Icahn School of Medicine at Mount Sinai (ISMMS)
+New York, 10029, USA
+li.shen@mssm.edu
+Laurie R. Margolies
+Department of Diagnostic, Molecular, and Interventional Radiology
+ISMMS
+Joseph H. Rothstein
+Department of Genetics and Genomic Sciences
+Department of Population Health Science and Policy
+ISMMSEugene Fluder
+Department of Scientiﬁc Computing
+ISMMS
+Russell B. McBride
+Department of Pathology
+ISMMSWeiva Sieh
+Department of Population Health Science and Policy
+Department of Genetics and Genomic Sciences
+ISMMS
+Abstract
+The rapid development of deep learning, a family of machine learning techniques,
+has spurred much interest in its application to medical imaging problems. Here,
+we develop a deep learning algorithm that can accurately detect breast cancer on
+screening mammograms using an ""end-to-end"" training approach that efﬁciently
+leverages training datasets with either complete clinical annotation or only the
+cancer status (label) of the whole image. In this approach, lesion annotations
+are required only in the initial training stage, and subsequent stages require only
+image-level labels, eliminating the reliance on rarely available lesion annotations.
+Our all convolutional network method for classifying screening mammograms
+attained excellent performance in comparison with previous methods. On an
+independent test set of digitized ﬁlm mammograms from Digital Database for
+Screening Mammography (DDSM), the best single model achieved a per-image
+AUC of 0.88, and four-model averaging improved the AUC to 0.91 (sensitivity:
+86.1%, speciﬁcity: 80.1%). On a validation set of full-ﬁeld digital mammography
+(FFDM) images from the INbreast database, the best single model achieved a
+per-image AUC of 0.95, and four-model averaging improved the AUC to 0.98
+(sensitivity: 86.7%, speciﬁcity: 96.1%). We also demonstrate that a whole image
+classiﬁer trained using our end-to-end approach on the DDSM digitized ﬁlm
+mammograms can be transferred to INbreast FFDM images using only a subset
+of the INbreast data for ﬁne-tuning and without further reliance on the availability
+of lesion annotations. These ﬁndings show that automatic deep learning methods
+can be readily trained to attain high accuracy on heterogeneous mammography
+platforms, and hold tremendous promise for improving clinical tools to reduce
+Preprint. Work in progress.arXiv:1708.09427v5  [cs.CV]  31 Dec 2018"
+"false positive and false negative screening mammography results. Code and model
+available at: https://github.com/lishen/end2end-all-conv
+1 Introduction
+The rapid advancement of machine learning and especially deep learning continues to fuel the
+medical imaging community’s interest in applying these techniques to improve the accuracy of cancer
+screening. Breast cancer is the second leading cause of cancer deaths among U.S. women [1] and
+screening mammography has been found to reduce mortality [2]. Despite the beneﬁts, screening
+mammography is associated with a high risk of false positives as well as false negatives. According
+to a study conducted by the Breast Cancer Surveillance Consortium in 2009, the overall sensitivity
+of digital screening mammography in the U.S. is 84.4% and the overall speciﬁcity is 90.8% [3]. To
+help radiologists improve the predictive accuracy of screening mammography, computer-assisted
+detection and diagnosis (CAD) software (reviewed in [4]) have been developed and in clinical
+use since the 1990s. Unfortunately, data suggests that commercial CAD systems have not led to
+signiﬁcant improvement in performance [5–7] and progress has stagnated in the past decade. With
+the remarkable success of deep learning in visual object recognition and detection, and many other
+domains [8], there is much interest in developing deep learning tools to assist radiologists and improve
+the accuracy of screening mammography [9–12].
+Early detection of subclinical breast cancer on screening mammography is challenging as an image
+classiﬁcation task because the tumors themselves occupy only a small portion of the image of the
+entire breast. For example, a full-ﬁeld digital mammography (FFDM) image is typically 40003000
+pixels while a cancerous region of interest (ROI) can be as small as 100100pixels. If ROI
+annotations were widely available in mammography databases then established object detection and
+classiﬁcation methods such as the region-based convolutional neural network (R-CNN) [13] and its
+variants [14–16] could be readily applied. However, approaches that require ROI annotations [17–27]
+often cannot be transferred to large mammography databases that lack ROI annotations, which are
+laborious and costly to assemble. Indeed, few public mammography databases are annotated [28].
+Yet, deep learning requires large training datasets to be most effective. Thus, it is essential to leverage
+both the few fully annotated datasets, as well as larger datasets labeled with only the cancer status of
+each image to improve the accuracy of breast cancer classiﬁcation algorithms.
+Pre-training is a promising method to address the training problem. For example, Hinton et al. [29]
+used layer-wise pre-training to initialize the weight parameters of a deep belief net (DBN) with three
+hidden layers and then ﬁne-tuned it for classiﬁcation. They found that pre-training improved the
+training speed as well as the accuracy of handwritten digit recognition. Another popular training
+method is to ﬁrst train a deep learning model on a large database such as the ImageNet [30] and
+then ﬁne-tune the model for another task. Although the speciﬁc task may not be related to the initial
+training dataset, the model’s weight parameters are already initialized for recognizing primitive
+features, such as edges, corners and textures, which can be readily used for a different task. This
+often saves training time and improves the model’s performance.
+In this study, we propose an ""end-to-end"" approach in which a model to classify local image patches
+is pre-trained using a fully annotated dataset with ROI information. The patch classiﬁer’s weight
+parameters are then used to initialize the weight parameters of the whole image classiﬁer, which can
+be further ﬁne-tuned using datasets without ROI annotations (see discussion in [31]). We used a
+large public ﬁlm-based mammography database—with thousands of images—to develop the patch
+and whole image classiﬁers, and then transferred the whole image classiﬁers to a public FFDM
+database—with hundreds of images. We evaluated various network designs for constructing the patch
+and whole image classiﬁers to attain the best performance. The pipeline required to build a whole
+image classiﬁer is presented here, as well as the pros and cons of different training strategies.
+2 Methods
+2.1 Converting a classiﬁer from recognizing patches to whole images
+To perform classiﬁcation or segmentation on large complex images, a common strategy involves the
+use of a classiﬁer in sliding window fashion to recognize local patches on an image to generate a
+2"
+"3 Results
+3.1 Developing patch and whole image classiﬁers on DDSM
+3.1.1 Setup and processing of the dataset
+The DDSM [34] contains digitized ﬁlm mammograms in a lossless-JPEG format that is obsolete. We
+used a later version of the database called CBIS-DDSM [42] which contains images that are converted
+into the standard DICOM format. The dataset which consisted of 2478 mammography images from
+1249 women was downloaded from the CBIS-DDSM website and included both craniocaudal (CC)
+and mediolateral oblique (MLO) views for most of the exams. Each view was treated as a separate
+image in this study due to the sample size limit. The purpose of this study was to predict the malignant
+vs. benign (or normal) status of each image. We performed an 85-15 split on the patient-level data to
+create independent training and test sets. In the training set, we further isolated 10% of the patients to
+create an independent validation set. The splits were done in a stratiﬁed fashion to maintain the same
+proportion of cancer cases in the training, validation and test sets. The total numbers of images in the
+training, validation and testing sets were: 1903, 199 and 376, respectively.
+The DDSM database contains the pixel-level annotations for the ROIs and their pathologically
+conﬁrmed labels: benign or malignant. It further labels each ROI as a calciﬁcation or mass. Most
+mammograms contain only one ROI. All mammograms were converted into PNG format and down-
+sized to 1152896. Two patch image sets were created by sampling image patches from ROIs
+and background regions. All patches had the same size of 224224. The ﬁrst dataset (S1) was
+comprised of sets of patches in which one is centered on the ROI and one is a random background
+patch from the same image. The second dataset (S10) was derived from 10 sampled patches around
+each ROI with a minimum overlapping ratio of 0.9 and the same number of background patches from
+the same image. All patches were classiﬁed into one of the ﬁve categories: background, malignant
+mass, benign mass, malignant calciﬁcation and benign calciﬁcation.
+3.1.2 Network training
+Training a whole image classiﬁer was achieved in two steps. The ﬁrst step was to train a patch
+classiﬁer. We compared the networks with pre-trained weights using the ImageNet [30] database
+to those with randomly initialized weights. For a pre-trained network, the bottom layers represent
+primitive features that tend to be preserved across different tasks, whereas the top layers represent
+higher-order features that are more related to speciﬁc tasks and require further training. Using the
+same learning rate for all layers may destroy the features that are already learned in the bottom
+layers. To prevent this, a 3-stage training strategy was proposed which freezes the parameter learning
+for all but the ﬁnal layer and progressively unfreezes parameter learning from top to bottom, while
+simultaneously decreasing the learning rate. The 3-stage training strategy on the S10 patch set was as
+follows:
+1. Set learning rate to 1e-3 and train the last layer for 3 epochs.
+2.Set learning rate to 1e-4, unfreeze the top layers and train for 10 epochs, where the top layer
+number is set to 46 for Resnet50 and 11 for VGG16.
+3.Set learning rate to 1e-5, unfreeze all layers and train for 37 epochs for a total of 50 epochs.
+In the above, an epoch was deﬁned as a sweep through the training set. For the S1 patch set, the
+total number of epochs was increased to 200 because it is much smaller than the S10 patch set. For
+randomly initialized networks a constant learning rate of 1e-3 was used. Adam [43] was used as the
+optimizer and the batch size was set to be 32. The sample weights were adjusted within each batch to
+keep the ﬁve classes balanced.
+The second step was to train a whole image classiﬁer converted from the patch classiﬁer (Fig. 1).
+Similarly, a 2-stage training strategy was used to ﬁrst train the newly added top layers (i.e. function
+g) and then train all layers (i.e. function h) with a reduced learning rate, which was as follows:
+1.Set learning rate to 1e-4, weight decay to 0.001 and train the newly added top layers for 30
+epochs.
+2.Set learning rate to 1e-5, weight decay to 0.01 and train all layers for 20 epochs for a total
+of 50 epochs.
+5"
+"Table 4: Transfer learning efﬁciency with different training set sizes. Shown are per-image validation
+AUCs.
+#Patients #Images Resnet-Resnet Resnet-VGG VGG-VGG VGG-Resnet
+20 79 0.92 0.88 0.87 0.89
+30 117 0.93 0.94 0.93 0.90
+40 159 0.93 0.95 0.93 0.93
+50 199 0.94 0.95 0.94 0.93
+60 239 0.95 0.95 0.95 0.94
+72 (All) 280 0.95 0.95 0.95 0.95
+Taking a model average improved the AUC to 0.98 which corresponded to sensitivity of 86.7% and
+speciﬁcity of 96.1% (Fig. 3b).
+We then sought to determine the minimum amount of data required to ﬁne-tune a whole image
+classiﬁer to a satisfactory level of performance, thereby minimizing the resource intensive process of
+obtaining labels. Training subsets with 20, 30, 40, 50 and 60 patients were sampled for ﬁne-tuning
+a model and evaluating the model’s performance on the same validation set (Table 4). With as few
+as 20 patients or 79 images, the four models were already achieving AUCs that varied between
+0.87-0.92. The AUCs quickly approached the maximum as we increased the training subset size. We
+hypothesize that the ""hard"" part of learning is to recognize the shapes and textures of the benign and
+malignant ROIs and normal tissues, while the ""easy"" part is to adjust to different intensity proﬁles
+on independent datasets. Importantly, these results clearly demonstrate that the end-to-end training
+approach can be successfully used to ﬁne-tune a whole image classiﬁer using additional small training
+sets with image-level labels, greatly reducing the burden of training set construction.
+4 Discussion
+Our ﬁndings show that accurate classiﬁcation of screening mammograms can be achieved with a
+deep learning model trained in an end-to-end fashion that relies on clinical ROI annotations only
+in the initial stage. Once the whole image classiﬁer is built, it can be ﬁne-tuned using additional
+datasets that lack ROI annotations, even if the pixel intensity distributions differ as is often the case
+for datasets assembled from heterogeneous mammography platforms. Our ﬁndings show that deep
+learning algorithms can outperform current commercial CAD systems which have been reported
+to attain an average AUC of 0.72 [6]. Our all convolutional networks trained using an end-to-end
+approach also have highly competitive performance and are more generalizable across different
+mammography platforms compared to previous deep learning methods that have achieved AUCs in
+the range of 0.65-0.97 on the DDSM and INbreast databases, as well as in-house datasets [12].
+Two recent studies [45, 46] developed deep learning based methods for breast cancer classiﬁcation
+using ﬁlm and digital mammograms, which are end-to-end trainable. Each study uses multi-instance
+learning (MIL) and modiﬁes the whole image classiﬁers’ cost functions to satisfy the MIL criterion.
+In contrast to our approach, neither study utilizes ROI annotations to train the patch classiﬁers ﬁrst
+and the AUCs are lower than reported in this study. We found that the quality of the patch classiﬁers
+is critical to the accuracy of the whole image classiﬁers. This was supported by two lines of evidence:
+First, the whole image classiﬁer based on the S10 patch set performed far better than the one based on
+the S1 patch set (Table 2). Second, it took much longer for the VGG16-based whole image classiﬁers
+to achieve the same performance as the Resnet50-based classiﬁers (Tables 2 & 3) because VGG16
+was less accurate than Resnet50 in patch classiﬁcation (Table 1).
+We also found that sampling more patches to include the ROIs’ neighboring and background regions
+improved the whole image classiﬁcation. However, the computational burden increases linearly
+with the number of patches sampled and the performance gain may quickly diminish. Thus, further
+research is needed to investigate how to sample local patches more efﬁciently—–perhaps by focusing
+on the patches that are likely to be misclassiﬁed—–to help overcome the computational burden of
+training more accurate patch classiﬁers.
+Although the performance between VGG-based and Resnet-based whole image classiﬁers was
+comparable, the VGG-based classiﬁers tended to overﬁt and required longer training. On the other
+10"
+"hand, the VGG16 (without the two FC layers), with 15 million weight parameters, is a much smaller
+network than the Resnet50, with 24 million weight parameters. Having fewer parameters reduces
+memory usage and training time per epoch, which are desirable when computational resources are
+limited. The Resnet is a more recently developed deep learning method, which is enhanced by
+shortcuts and batch normalization, both techniques may help the network train faster and generalize
+better. The same techniques can be used on the VGG-based networks as well, which may provide
+future improvement for the VGG-based classiﬁers.
+In this study, the mammograms were down-sized to ﬁt into the available GPU (8GB). As more GPU
+memory becomes available, future studies will be able to train models using larger image sizes, if not
+retain the native image resolution without the need for downsizing. Retaining the full resolution of
+modern digital mammography images will provide ﬁner details of the ROIs and would likely improve
+performance.
+In conclusion, our study demonstrates that deep learning models trained in an end-to-end fashion are
+highly accurate and can be readily transferred across heterogeneous mammography platforms. Thus,
+deep learning methods have enormous potential to improve the accuracy of breast cancer detection
+on digital screening mammograms as the available training datasets expand. Our approach may assist
+in the development of superior CAD systems that can increase the beneﬁt and reduce the harm of
+screening mammography and may have applications in other medical imaging problems where ROI
+annotations are scarce.
+Acknowledgments
+This work was partially supported by the Friedman Brain Institute and the Tisch Cancer Institute (NIH
+P30 CA196521). The funders had no role in study design, data collection and analysis, decision to
+publish, or preparation of the manuscript. This work was supported in part through the computational
+resources and staff expertise provided by the Department of Scientiﬁc Computing at the Icahn School
+of Medicine at Mount Sinai. We would like to thank Gustavo Carneiro, Gabriel Maicas, Daniel Rubin
+and Meng Cao for providing comments on the manuscript, and Quan Chen for discussion on the use
+of the INbreast data.
+Author contributions statement
+L.S. developed the algorithm, conceived and conducted the experiments and analyzed the results.
+L.R.M., J.R., R.M. and W.S. analyzed the results. E.F. helped with the computational resources. All
+authors contributed to writing and reviewing the manuscript.
+Computational environment
+All experiments in this study were carried out on a Linux workstation equipped with an NVIDIA
+8GB Quadro M4000 GPU card.
+References
+[1] American Cancer Society. How Common Is Breast Cancer? 2018. URL:https://www.
+cancer.org/cancer/breast- cancer/about/how- common- is- breast- cancer.
+html (visited on 12/18/2018).
+[2] Kevin C. Oefﬁnger et al. “Breast Cancer Screening for Women at Average Risk: 2015 Guide-
+line Update From the American Cancer Society”. In: JAMA 314.15 (Oct. 20, 2015), pp. 1599–
+1614. ISSN : 0098-7484. DOI:10.1001/jama.2015.12783 .URL:https://jamanetwork.
+com/journals/jama/fullarticle/2463262 (visited on 12/18/2018).
+[3] Breast Cancer Surveillance Consortium. Performance Measures for 1,838,372 Screening
+Mammography Examinations from 2004 to 2008 by Age – Based on BCSC Data through
+2009 . 2009. URL:http://www.bcsc- research.org/statistics/performance/
+screening/2009/perf_age.html (visited on 12/18/2018).
+11"
+"[4] Matthias Elter and Alexander Horsch. “CADx of Mammographic Masses and Clustered
+Microcalciﬁcations: A Review”. In: Medical Physics 36 (6Part1 2009), pp. 2052–2068. ISSN :
+2473-4209. DOI:10.1118/1.3121511 .URL:https://aapm.onlinelibrary.wiley.
+com/doi/abs/10.1118/1.3121511 (visited on 12/18/2018).
+[5] Joshua J. Fenton et al. “Inﬂuence of Computer-Aided Detection on Performance of Screening
+Mammography”. In: New England Journal of Medicine 356.14 (Apr. 5, 2007), pp. 1399–
+1409. ISSN : 0028-4793. DOI:10.1056/NEJMoa066099 . pmid: 17409321 .URL:https:
+//doi.org/10.1056/NEJMoa066099 (visited on 12/18/2018).
+[6] Elodia B. Cole et al. “Impact of Computer-Aided Detection Systems on Radiologist Accuracy
+With Digital Mammography”. In: American Journal of Roentgenology 203.4 (Sept. 23, 2014),
+pp. 909–916. ISSN : 0361-803X. DOI:10.2214/AJR.12.10187 .URL:https://www.
+ajronline.org/doi/abs/10.2214/AJR.12.10187 (visited on 01/31/2018).
+[7] Constance D. Lehman et al. “Diagnostic Accuracy of Digital Screening Mammography
+With and Without Computer-Aided Detection”. In: JAMA Internal Medicine 175.11 (Nov. 1,
+2015), pp. 1828–1837. ISSN : 2168-6106. DOI:10.1001/jamainternmed.2015.5231 .
+URL:https://jamanetwork.com/journals/jamainternalmedicine/fullarticle/
+2443369 (visited on 12/18/2018).
+[8] Yann LeCun, Yoshua Bengio, and Geoffrey Hinton. “Deep Learning”. In: Nature 521.7553
+(May 2015), pp. 436–444. ISSN : 1476-4687. DOI:10.1038/nature14539 .URL:https:
+//www.nature.com/articles/nature14539 (visited on 12/18/2018).
+[9] Sarah S. Aboutalib et al. “Deep Learning to Distinguish Recalled but Benign Mammography
+Images in Breast Cancer Screening”. In: Clinical Cancer Research (Oct. 11, 2018). ISSN :
+1078-0432, 1557-3265. DOI:10 . 1158 / 1078 - 0432 . CCR - 18 - 1115 .URL:http : / /
+clincancerres.aacrjournals.org/content/early/2018/09/26/1078-0432.CCR-
+18-1115 (visited on 10/11/2018).
+[10] Eun-Kyung Kim et al. “Applying Data-Driven Imaging Biomarker in Mammography for
+Breast Cancer Screening: Preliminary Study”. In: Scientiﬁc Reports 8.1 (Feb. 9, 2018), p. 2762.
+ISSN : 2045-2322. DOI:10.1038/s41598-018-21215-1 .URL:https://www.nature.
+com/articles/s41598-018-21215-1 (visited on 02/26/2018).
+[11] Azam Hamidinekoo et al. “Deep Learning in Mammography and Breast Histology, an
+Overview and Future Trends”. In: Medical Image Analysis 47 (July 1, 2018), pp. 45–67. ISSN :
+1361-8415. DOI:10.1016/j.media.2018.03.006 .URL:http://www.sciencedirect.
+com/science/article/pii/S1361841518300902 (visited on 05/22/2018).
+[12] Jeremy R Burt et al. “Deep Learning beyond Cats and Dogs: Recent Advances in Diag-
+nosing Breast Cancer with Deep Neural Networks”. In: The British Journal of Radiology
+(Apr. 10, 2018), p. 20170545. ISSN : 0007-1285, 1748-880X. DOI:10.1259/bjr.20170545 .
+URL:http://www.birpublications.org/doi/10.1259/bjr.20170545 (visited on
+05/22/2018).
+[13] Ross Girshick et al. “Rich Feature Hierarchies for Accurate Object Detection and Semantic
+Segmentation”. In: Proceedings of the 2014 IEEE Conference on Computer Vision and
+Pattern Recognition . CVPR ’14. Washington, DC, USA: IEEE Computer Society, 2014,
+pp. 580–587. ISBN : 978-1-4799-5118-5. DOI:10 . 1109 / CVPR . 2014 . 81 .URL:http :
+//dx.doi.org/10.1109/CVPR.2014.81 (visited on 11/10/2016).
+[14] Ross Girshick. “Fast R-Cnn”. In: Proceedings of the IEEE International Conference on Com-
+puter Vision . 2015, pp. 1440–1448. URL:http://www.cv-foundation.org/openaccess/
+content_iccv_2015/html/Girshick_Fast_R-CNN_ICCV_2015_paper.html (visited
+on 11/09/2016).
+[15] Shaoqing Ren et al. “Faster R-CNN: Towards Real-Time Object Detection with Region
+Proposal Networks”. In: Advances in Neural Information Processing Systems . 2015, pp. 91–
+99. URL:http://papers.nips.cc/paper/5638- faster- r- cnn- towards- real-
+time-object-detection-with-region-proposal-networks (visited on 11/09/2016).
+[16] Jifeng Dai et al. “R-FCN: Object Detection via Region-Based Fully Convolutional Networks”.
+In: (May 20, 2016). arXiv: 1605.06409 [cs] .URL:http://arxiv.org/abs/1605.06409
+(visited on 11/17/2016).
+12"
+"[17] Andrew R. Jamieson, Karen Drukker, and Maryellen L. Giger. “Breast Image Feature Learning
+with Adaptive Deconvolutional Networks”. In: Proc. SPIE . Medical Imaging 2012: Computer-
+Aided Diagnosis. V ol. 8315. 2012, pp. 6–13. DOI:10 . 1117 / 12 . 910710 .URL:http :
+//dx.doi.org/10.1117/12.910710 (visited on 08/17/2016).
+[18] J. Arevalo et al. “Convolutional Neural Networks for Mammography Mass Lesion Clas-
+siﬁcation”. In: 2015 37th Annual International Conference of the IEEE Engineering in
+Medicine and Biology Society (EMBC) . 2015 37th Annual International Conference of the
+IEEE Engineering in Medicine and Biology Society (EMBC). Aug. 2015, pp. 797–800. DOI:
+10.1109/EMBC.2015.7318482 .
+[19] Gustavo Carneiro, Jacinto Nascimento, and Andrew P. Bradley. “Unregistered Multiview
+Mammogram Analysis with Pre-Trained Deep Learning Models”. In: Medical Image Com-
+puting and Computer-Assisted Intervention – MICCAI 2015: 18th International Conference,
+Munich, Germany, October 5-9, 2015, Proceedings, Part III . Ed. by Nassir Navab et al.
+Cham: Springer International Publishing, 2015, pp. 652–660. ISBN : 978-3-319-24574-4. URL:
+http://dx.doi.org/10.1007/978-3-319-24574-4_78 .
+[20] N. Dhungel, G. Carneiro, and A. P. Bradley. “Automated Mass Detection in Mammograms
+Using Cascaded Deep Learning and Random Forests”. In: 2015 International Conference
+on Digital Image Computing: Techniques and Applications (DICTA) . 2015 International
+Conference on Digital Image Computing: Techniques and Applications (DICTA). Nov. 2015,
+pp. 1–8. DOI:10.1109/DICTA.2015.7371234 .
+[21] M. G. Ertosun and D. L. Rubin. “Probabilistic Visual Search for Masses within Mammography
+Images Using Deep Learning”. In: 2015 IEEE International Conference on Bioinformatics and
+Biomedicine (BIBM) . 2015 IEEE International Conference on Bioinformatics and Biomedicine
+(BIBM). Nov. 2015, pp. 1310–1315. DOI:10.1109/BIBM.2015.7359868 .
+[22] Ayelet Akselrod-Ballin et al. “A Region Based Convolutional Network for Tumor Detection
+and Classiﬁcation in Breast Mammography”. In: Deep Learning and Data Labeling for
+Medical Applications: First International Workshop, LABELS 2016, and Second International
+Workshop, DLMIA 2016, Held in Conjunction with MICCAI 2016, Athens, Greece, October 21,
+2016, Proceedings . Ed. by Gustavo Carneiro et al. Cham: Springer International Publishing,
+2016, pp. 197–205. ISBN : 978-3-319-46976-8. URL:http://dx.doi.org/10.1007/978-
+3-319-46976-8_21 .
+[23] John Arevalo et al. “Representation Learning for Mammography Mass Lesion Classiﬁcation
+with Convolutional Neural Networks”. In: Computer Methods and Programs in Biomedicine
+127 (Apr. 2016), pp. 248–257. ISSN : 0169-2607. DOI:10.1016/j.cmpb.2015.12.014 .
+URL:http://www.sciencedirect.com/science/article/pii/S0169260715300110
+(visited on 08/17/2016).
+[24] Daniel Lévy and Arzav Jain. “Breast Mass Classiﬁcation from Mammograms Using Deep
+Convolutional Neural Networks”. In: arXiv preprint arXiv:1612.00542 (2016). URL:https:
+//arxiv.org/abs/1612.00542 (visited on 03/02/2017).
+[25] Neeraj Dhungel, Gustavo Carneiro, and Andrew P. Bradley. “The Automated Learning of Deep
+Features for Breast Mass Classiﬁcation from Mammograms”. In: Medical Image Computing
+and Computer-Assisted Intervention – MICCAI 2016: 19th International Conference, Athens,
+Greece, October 17-21, 2016, Proceedings, Part II . Ed. by Sebastien Ourselin et al. Cham:
+Springer International Publishing, 2016, pp. 106–114. ISBN : 978-3-319-46723-8. URL:http:
+//dx.doi.org/10.1007/978-3-319-46723-8_13 .
+[26] Anton S. Becker et al. “Deep Learning in Mammography: Diagnostic Accuracy of a Mul-
+tipurpose Image Analysis Software in the Detection of Breast Cancer”. In: Investigative
+Radiology (Feb. 16, 2017). ISSN : 1536-0210. DOI:10.1097/RLI.0000000000000358 .
+pmid: 28212138 .
+[27] Dezs ˝o Ribli et al. “Detecting and Classifying Lesions in Mammograms with Deep Learning”.
+In: (July 26, 2017). arXiv: 1707.08401 [cs] .URL:http://arxiv.org/abs/1707.08401
+(visited on 12/12/2017).
+[28] Inês C. Moreira et al. “INbreast: Toward a Full-Field Digital Mammographic Database”. In:
+Academic Radiology 19.2 (Feb. 2012), pp. 236–248. ISSN : 1076-6332. DOI:10.1016/j.
+acra.2011.09.014 .URL:http://www.sciencedirect.com/science/article/pii/
+S107663321100451X (visited on 12/12/2016).
+13"
+"[29] Geoffrey E. Hinton, Simon Osindero, and Yee-Whye Teh. “A Fast Learning Algorithm for
+Deep Belief Nets”. In: Neural Comput. 18.7 (2006), pp. 1527–1554. ISSN : 0899-7667. DOI:
+10.1162/neco.2006.18.7.1527 .URL:http://www.mitpressjournals.org/doi/
+pdfplus/10.1162/neco.2006.18.7.1527 .
+[30] Olga Russakovsky et al. “ImageNet Large Scale Visual Recognition Challenge”. In: Inter-
+national Journal of Computer Vision 115.3 (Dec. 1, 2015), pp. 211–252. ISSN : 0920-5691,
+1573-1405. DOI:10.1007/s11263-015-0816-y .URL:https://link.springer.com/
+article/10.1007/s11263-015-0816-y (visited on 05/12/2017).
+[31] Li Shen. Breast Cancer Diagnosis Using Deep Residual Nets and Transfer Learning . 2017.
+URL:https://www.synapse.org/#!Synapse:syn9773182/wiki/426912 (visited on
+08/23/2017).
+[32] Dayong Wang et al. “Deep Learning for Identifying Metastatic Breast Cancer”. In: (June 18,
+2016). arXiv: 1606.05718 [cs, q-bio] .URL:http://arxiv.org/abs/1606.05718
+(visited on 12/20/2016).
+[33] Dan Ciresan et al. “Deep Neural Networks Segment Neuronal Membranes in Electron Mi-
+croscopy Images”. In: Advances in Neural Information Processing Systems 25 . Ed. by F.
+Pereira et al. Curran Associates, Inc., 2012, pp. 2843–2851. URL:http://papers.nips.
+cc / paper / 4741 - deep - neural - networks - segment - neuronal - membranes - in -
+electron-microscopy-images.pdf (visited on 10/04/2017).
+[34] Michael Heath et al. “The Digital Database for Screening Mammography”. In: Proceedings of
+the Fifth International Workshop on Digital Mammography . The Fifth International Workshop
+on Digital Mammography. Ed. by M.J. Yaffe. Medical Physics Publishing, 2001, pp. 212–218.
+ISBN : 1-930524-00-5.
+[35] François Chollet and others. Keras . GitHub, 2015. URL:https://github.com/fchollet/
+keras .
+[36] Martín Abadi et al. TensorFlow: Large-Scale Machine Learning on Heterogeneous Systems .
+2015. URL:https://www.tensorflow.org/ .
+[37] Yangqing Jia et al. “Caffe: Convolutional Architecture for Fast Feature Embedding”. In:
+(June 20, 2014). arXiv: 1408.5093 [cs] .URL:http://arxiv.org/abs/1408.5093
+(visited on 11/29/2016).
+[38] Tianqi Chen et al. “MXNet: A Flexible and Efﬁcient Machine Learning Library for Hetero-
+geneous Distributed Systems”. In: (Dec. 3, 2015). arXiv: 1512.01274 [cs] .URL:http:
+//arxiv.org/abs/1512.01274 (visited on 10/04/2017).
+[39] Karen Simonyan and Andrew Zisserman. “Very Deep Convolutional Networks for Large-Scale
+Image Recognition”. In: (Sept. 4, 2014). arXiv: 1409.1556 [cs] .URL:http://arxiv.
+org/abs/1409.1556 (visited on 08/29/2017).
+[40] Kaiming He et al. “Deep Residual Learning for Image Recognition”. In: (Dec. 10, 2015). arXiv:
+1512.03385 [cs] .URL:http://arxiv.org/abs/1512.03385 (visited on 03/30/2016).
+[41] Sergey Ioffe and Christian Szegedy. “Batch Normalization: Accelerating Deep Network
+Training by Reducing Internal Covariate Shift”. In: (Feb. 10, 2015). arXiv: 1502.03167 [cs] .
+URL:http://arxiv.org/abs/1502.03167 (visited on 03/28/2016).
+[42] Rebecca Sawyer Lee et al. “Curated Breast Imaging Subset of DDSM”. In: The Cancer
+Imaging Archive (2016). DOI:http://dx.doi.org/10.7937/K9/TCIA.2016.7O02S9CY .
+URL:http://dx.doi.org/10.7937/K9/TCIA.2016.7O02S9CY .
+[43] Diederik P. Kingma and Jimmy Ba. “Adam: A Method for Stochastic Optimization”. In:
+(Dec. 22, 2014). arXiv: 1412.6980 [cs] .URL:http://arxiv.org/abs/1412.6980 .
+[44] C.J. D’Orsi et al. ACR BI-RADS RAtlas, Breast Imaging Reporting and Data System . 5th.
+Reston, Va: American College of Radiology, 2013.
+[45] Wentao Zhu et al. “Deep Multi-Instance Networks with Sparse Label Assignment for Whole
+Mammogram Classiﬁcation”. In: (May 23, 2017). arXiv: 1705.08550 [cs] .URL:http:
+//arxiv.org/abs/1705.08550 (visited on 09/01/2017).
+[46] Yoni Choukroun et al. “Mammogram Classiﬁcation and Abnormality Detection from Nonlocal
+Labels Using Deep Multiple Instance Neural Network”. In: Eurographics Workshop on Visual
+Computing for Biology and Medicine. 2017.
+14"
+"BreastScreening: On the Use of Multi-Modality in Medical
+Imaging Diagnosis
+Francisco Maria Calisto
+francisco.calisto@tecnico.ulisboa.pt
+Institute for Systems and Robotics
+Lisbon, PortugalNuno Nunes
+nunojnunes@tecnico.ulisboa.pt
+Interactive Technologies Institute
+Funchal, Madeira, PortugalJacinto C. Nascimento
+jan@isr.tecnico.ulisboa.pt
+Institute for Systems and Robotics
+Lisbon, Portugal
+ABSTRACT
+This paper describes the field research, design and comparative de-
+ployment of a multimodal medical imaging user interface for breast
+screening. The main contributions described here are threefold: 1)
+The design of an advanced visual interface for multimodal diagnosis
+of breast cancer ( BreastScreening ); 2) Insights from the field com-
+parison of Single-Modality vs Multi-Modality screening of breast
+cancer diagnosis with 31 clinicians and 566 images; and 3) The vi-
+sualization of the two main types of breast lesions in the following
+image modalities: (i) MammoGraphy (MG) in both Craniocaudal
+(CC) and Mediolateral oblique (MLO) views; (ii) UltraSound (US);
+and (iii) Magnetic Resonance Imaging (MRI). We summarize our
+work with recommendations from the radiologists for guiding the
+future design of medical imaging interfaces.
+CCS CONCEPTS
+•Human-centered computing →User studies ;Usability
+testing ;Interaction techniques ;User centered design ;User inter-
+face design .
+KEYWORDS
+human-computer interaction, user-centered design, multimodal-
+ity, healthcare systems, medical imaging, breast cancer, annotations
+ACM Reference Format:
+Francisco Maria Calisto, Nuno Nunes, and Jacinto C. Nascimento. 2020.
+BreastScreening: On the Use of Multi-Modality in Medical Imaging Diag-
+nosis. In International Conference on Advanced Visual Interfaces (AVI ’20),
+September 28-October 2, 2020, Salerno, Italy. ACM, New York, NY, USA,
+5 pages. https://doi.org/10.1145/3399715.3399744
+1 INTRODUCTION
+Breast cancer is the most common cancer in women worldwide [ 12].
+Screening plays a fundamental role in the reduction of patient
+mortality rate. The most widely employed image modality for breast
+screening is MammoGraphy (MG). However, high-risk or dense
+breast patients require UltraSound (US) or Magnetic Resonance
+Imaging1(MRI) for proper examination [ 18]. Therefore, it is quite
+rare to conduct screening using a Single-Modality .
+Permission to make digital or hard copies of part or all of this work for personal or
+classroom use is granted without fee provided that copies are not made or distributed
+for profit or commercial advantage and that copies bear this notice and the full citation
+on the first page. Copyrights for third-party components of this work must be honored.
+For all other uses, contact the owner/author(s).
+AVI ’20, September 28-October 2, 2020, Salerno, Italy
+©2020 Copyright held by the owner/author(s).
+ACM ISBN 978-1-4503-7535-1/20/09.
+https://doi.org/10.1145/3399715.3399744In this paper, we describe the design and comparative testing
+ofBreastScreening integrating information from several and dif-
+ferent image modalities. We tested the design of BreastScreening
+with 31 clinicians noting that the time spent per each image on a
+Multi-Modality strategy is reduced when compared with the Single-
+Modality scenario. In addition, the lesion classification ( e.g., Breast
+Imaging Reporting and Data System - BIRADS [ 29]) is also reduced
+from our Multi-Modality proposed approach.
+1.1 BreastScreening Challenges
+Overall the system involves the following functionalities: (1) an
+interface for identifying (and annotating ground truth) of two types
+of lesions (i.e., masses and calcifications) across image modalities;
+(2) support for categorization of the breast tissues (dense vs non-
+dense); (3) a classification (and recommendation) schema for lesion
+severity using BIRADS [ 1,29]; (4) prompt access to clinical co-
+variables, such as personal and familiar records; and (5) proper
+visualizations for a follow-up diagnosis of the patients.
+1.2 Design Process
+The following topics summarize the process we conducted: (1)
+findings from a formative study with 31 clinicians, comprising Ra-
+diology Room (RR) observations and interviews, which are relevant
+for both Health Informatics (HI) and Human-Computer Interac-
+tion (HCI) fields of research. This leads us to explore the design
+goals (see Section 3); (2) findings from an evaluation study [ 6] of
+BreastScreening , a prototype we developed for the generation of
+a breast dataset with expert annotations (see Section 4); and (3)
+design recommendations for the use of visualizations to support
+medical imaging diagnosis (see Sections 4 and 5).
+1.3 Contributions
+InBreastScreening we provide several new insights, following novel
+interaction and visualization paradigms [ 23] in the context of breast
+cancer screening: (i)multimodal interaction; (ii)indistinct visu-
+alization of cluttered lesions; (iii)big data management platform;
+and(iv)clinicians’ multi-screen, multi-environment interaction.
+2 RELATED WORK
+This section addresses related work in the HCI field, describing
+several medical imaging applications. Our approach covers the lim-
+itations of the works following described. More specifically, we are
+able to deal with non-homogeneous data. Comprising multimodal
+images [ 38], classification ( i.e., BIRADS scores) and annotations
+(i.e., delineation of the lesion contours).arXiv:2004.03500v2  [cs.HC]  1 Jun 2020"
+"AVI ’20, September 28-October 2, 2020, Salerno, Italy Calisto, et al.
+2.1 Data Visualization
+To our knowledge, few papers [ 15,16,24] have focused purely
+on supporting the image search user experience through novel
+UIs. These authors described several techniques for presenting all
+images within a collection in a short time. Moreover, authors asked
+users to think and perform browsing an image gallery and selecting
+an image from the gallery. These studies, showed us refinement
+techniques as complements in image systems with relevant user
+feedback. However, the presented works are limited to non-clinical
+users, making it impossible to do a generalization to our research.
+2.2 Clinical Workflow
+In medical imaging, diagnostic tools enable clinicians to manage
+patient data, better attend to ongoing tasks and view critical infor-
+mation. For the diagnostic, understanding the clinical workflow is
+of chief importance while introducing novel tools and interaction
+techniques. Other authors [ 11,30] present many considerations for
+collaborative healthcare technology design and discuss the impli-
+cations of their findings on the current clinical workflow for the
+development of more effective care interventions. Supported by the
+above literature, our goal is to introduce a new tool with several
+novel interaction techniques, which will improve the final medical
+imaging diagnosis.
+2.3 Medical Imaging
+From current medical imaging technologies, several issues were
+identified in the HCI design [ 5,7,13]. Some works [ 2,25] show the
+current medical imaging identification techniques for other clinical
+domains, where most of available systems fail to address the visual
+nature of the task. In these two works [ 2,25], the authors create a
+visual approach to support the Mental Model development of the
+user. Medical imaging technologies are used to support physicians
+on the examination ,diagnosis , and (in some cases) report [37]. Oth-
+ers [10,28,33], study the effectiveness and performance of medical
+imaging systems, demonstrating how to design a user study for
+medical imaging experts. Further, van Schooten et al. [ 33] measured
+user performance in terms of time taken and error rate, while inter-
+acting with the provided system. Executing it with several medical
+users, in this work, the authors show an experiment where their
+users have similar characteristics as ours.
+2.4 Diagnostic Systems
+Medical imaging has also been extensively studied under the topic
+ofComputer-Aided Diagnosis (CADx) , which refers to systems that
+assist radiologists in image interpretation [ 4,22]. Wilcox et al. [ 35]
+propose a design for in-room, patient-centric information displays,
+based on iterative design with clinicians. However, these systems
+are not contemplating the design of an advanced visual interface for
+multimodal diagnosis on breast cancer disease. In the above works,
+we still lack on empirical studies regarding how clinicians can
+contribute with information contextualization about their clinical
+workflow, and general medical imaging diagnosis. Having said that,
+we also want to add contribution with a study of how medical
+imaging technologies can play a role in this contextualization.
+1This is the common/current practice in the radiologist services applied in the Hospital Fernando
+Fonseca (HFF), Portugal.3 DESIGN OF BREASTSCREENING
+The design of BreastScreening started with a qualitative study to
+understand radiology practices and workflow in the context of
+breast screening. Our study involved 31 clinicians, recruited on a
+volunteer basis from a large range of clinical scenarios (distinct
+health institutions in Portugal): 8 clinicians from Hospital Fernando
+Fonseca; 12 clinicians from IPO-Lisboa; 1 clinician from Hospital
+de Santa Maria; 8 clinicians from IPO-Coimbra; 1 clinician from
+Madeira Medical Center; and 1 clinician from SAMS. Clinicians’ ex-
+perience ranged from 5 - 30 years of medical practice. The recruited
+specialists are in advanced career positions and were observed
+and interviewed in a semi-structured fashion. Each session took
+approximately 30 minutes.
+3.1 Standard Clinical Environments
+BreastScreening works with the standard formats supported by
+medical imaging [ 21], including the MG, US and MRI modalities.
+These modalities are available in a standard Digital Imaging and
+Communications in Medicine (DICOM) format and supported in
+Single-Modality by existing systems [ 12]. Moreover, most systems
+are general purpose and do not adapt to specific clinical domains
+(e.g., breast screening). Therefore they do not provide adequate
+support to the different clinical workflows [7].
+3.2 Design Goals
+Combining the clinical context and the technical design challenges
+lead to a set of design issues, including: medical imaging structure
+trade-offs ,RR temporal awareness ,image segmentation [20], and
+radiologists system trust. Based on these, we define five design
+goals:
+Design around and for M edical I maging (DMI): by taking into ac-
+count the heterogeneous nature of medical imaging to lever-
+age its contextual richness;
+Temporal A wareness S upport (TAS): by observing how the radiol-
+ogy workflow events, treatments, and problems progressed
+over time;
+Image S egmentation S upport (ISS): the overview of image details
+allowing a more accurate diagnostic. Namely, reducing the
+number of false-positives classification (BIRADS) of the le-
+sion, as well as improving the number of clicks (Section 5)
+when performing the lesion delineation, i.e., segmentation;
+Several M odalities S upport (SMS): to enable the view and the pro-
+cess of diagnostic imaging studies, including MG, US and
+MRI medical imaging modalities;
+Growing T rust O verview (GTO): by allowing an efficient triangula-
+tion via visualizations, image processing between medical
+images and available features, i.e., annotations of masses and
+calcifications;
+4 BREASTSCREENING
+To validate the proposed design goals, we created BreastScreening ,
+as a Medical Imaging visualization proof-of-concept to be evaluated
+in a realistic clinical scenario. In our design explorations, we sought
+to integrate several image modalities and visualization to support
+insight."
+"BreastScreening AVI ’20, September 28-October 2, 2020, Salerno, Italy
+Figure 1: Single-Modality (left) and Multi-Modality (right) Views. The UI components are as follows: 4. List of Patient Views ; and 4.5. Study List Tabs ; as well as 5. Medical Imaging
+Diagnosis Views ;5.1. Viewports ;5.2. Toolbars ; and 5.3. Modality Selection .
+4.1 User Interface
+The User Interface (UI) consists of two main components: 4. List of
+Patient Views ; and 5. Medical Imaging Diagnosis Views . These two
+main components (Figure 1) are also divided into several sections:
+4.5. Study List Tabs ;5.1. Viewports ;5.2. Toolbars ; and 5.3. Modality Se-
+lection . Concerning 5. Medical Imaging Diagnosis Views (Viewports ,
+Toolbars andModality Selection ) this contributes for the temporal
+awareness ( TAS). More specifically, the clinician can probe for le-
+sion patterns [ 17] via the 5.1. Viewports , processing the image by
+using the 5.2. Toolbars features ( GTO ). The system 5.2. Toolbars are
+supporting our image segmentation ( ISS). The 5.1. Viewports are
+displayed right after the 5.2. Toolbars , designing around and for
+medical images ( DMI) what also improves the temporal awareness
+(TAS) of the task. On the same time, this design is supporting the
+way how to interact with several modalities ( SMS). Regarding 5.3.
+Modality Selection , this allows to the clinician to find more different
+views ( SMS) of the same lesion, allowing to perform a better sever-
+ity classification (Section 5). Finally, the clinician may look for the
+lesion shape and contour irregularities (Figure 1) to focus on the
+segments of the image ( ISS). After interacting with the system at
+the first time, the clinician is able to efficiently process ( ISS) several
+images at a same time and use the various given modalities ( SMS).
+4.2 Implementation
+BreastScreening was implemented using CornerstoneJS [32] with a
+NodeJS server. To populate the system, we selected image sets from
+HFF patients and upload them into an Orthanc server [ 14]. Each
+patient has three modalities (MG, US and MRI).The images were pre-processed and anonymized on the Or-
+thanc server and then consumed by the BreastScreening system.
+TheBreastScreening core is developed in JavaScript with jQuery for
+HTML document manipulation, event handling and dicomParser for
+parsing DICOM files. The DICOM files can be loaded by drag-and-
+drop files into the browser window on the Orthanc view.
+5 RESULTS
+We conducted an evaluation of BreastScreening in real-world con-
+ditions. Our goal was to quantitatively and qualitatively assess
+the proposed design principles and to understand how these prin-
+ciples will play in practice [ 3]. We are particularly interested in
+understanding how the design goals and challenges (Section 3) are
+addressed [ 34]. Ultimately, we are focused on clinicians’ opinions
+how to improve diagnostic reliability. To accomplish this, the clini-
+cians will have first to deal with: i) new mechanisms of multi-modal
+data visualization; ii) identification and delineation of lesions; and
+iii) classification of severity ( i.e.BIRADS). The experimental setup
+aimed at testing two conditions: Cond. C1 -Single-Modality , and
+Cond. C2 -Multi-Modality . For each condition ( i.e.,Single-Modality
+orMulti-Modality ) we collected complete imaging exams for three
+patients ( P1,P2andP3) on all possible modalities (MG, US and MRI).
+The MG and US comprise a single 2D image ( i.e., static modality),
+whilst the MRI [ 19,27] comprises a volume with N slices ( i.e., dy-
+namic modality [ 26]). The exams were previously annotated and
+classified with a BIRADS severity from an expert doctor who leads
+the HFF radiology department."
+"AVI ’20, September 28-October 2, 2020, Salerno, Italy Calisto, et al.
+5.1 Participants
+Our study involved 31 clinicians, recruited on a volunteer basis from
+a broad range of clinical scenarios, including six different health
+institutions (two public hospitals, two cancer institutes and two pri-
+vate clinics). From the demographic questionnaires: 16.10% of the
+clinicians have between 31 and 40 years of practical experience (Se-
+niors), 45.20% have between 11 and 30 years of experience (Middles),
+9.70% have between 6 and 10 years of experience (Juniors), and 29%
+have limited experience (Interns). Interviews were conducted in a
+semi-structured fashion taking about 30 minutes. Overall, 17 days
+were spent on the clinical institutions for the observation process
+and six months for the classification.
+5.2 Quantitative Analysis
+Four relations2emerged from our analysis: a) differences between
+SUS Scores andSUS Questions [31] among clinical experience ( i.e.,
+Intern ,Junior ,Middle , and Senior ); b) the workload measurements
+of both Single-Modality andMulti-Modality views; c) the relation
+between Time andNumber of Clicks , clustering by Patient ( i.e.,P1,
+P2andP3). The expert classification for the patients used in this
+study are BIRADS (P1)=2,BIRADS (P2)=5andBIRADS (P3)=3
+respectively, for both Single-Modality andMulti-Modality views;
+and, d) the distributions of the BIRADS variation (Figure 2).
+5.2.1 SUS Scores vs SUS Questions. The ANOVA test3[36] yields
+a significant difference in both Single-Modality (FSM= 11.79, p SM
+= 0.001 <0.05) and Multi-Modality (FMM= 23.31, p MM= 0.001 <
+0.05) conditions among the various clinical experience of Clinicians.
+Participants adopting the Multi-Modality (MMM= 2.9, SD MM=
+0.90) condition obtained higher SUS scores than those using the
+Single-Modality (MSM= 2.7, SD SM= 1.01) condition.
+5.2.2 Workload. The results generated from the NASA-TLX [ 9]
+yields a significant main effect for the Physical Demand (F SM=
+5.81, p SM= 0.003 <0.05) and Temporal Demand (F SM= 4.86, p SM
+= 0.009 <0.05). On the other hand, the Multi-Modality condition
+indicates that there exists a significant difference among Mental
+Demand (F MM= 3.13, p MM= 0.04 <0.05), Physical Demand (F MM
+= 4.61, p MM= 0.009 <0.05), and Temporal Demand (F MM= 9.17,
+pMM= 0.001 <0.05). The NASA-TLX yields significant difference
+among groups for both Effort (F MM= 3.74, p MM= 0.02 <0.05) and
+Frustration (F MM= 3.93, p MM= 0.01 <0.05).
+5.2.3 Time vs Number of Clicks. Results showing the amount of
+Time andNumber of Clicks in each of the 566 images among the
+three patients are following described. The ANOVA test shows a
+non-significant interaction effect over the total Time from both
+Single-Modality (FSM= 0.68, p SM= 0.56 >0.05) and Multi-Modality
+(FMM= 0.28, p MM= 0.83 >0.05) regarding the clinical experience
+groups. In addition, our results show a non-significant interaction
+effect for the total amount of Number of Clicks from both Single-
+Modality (FSM= 1.76, p SM= 0.17 >0.05) and Multi-Modality (FMM
+= 0.57, p MM= 0.63 >0.05).
+2Available datasets :usability (mimbcd-ui.github.io/dataset-uta4-sus), workload (mimbcd-
+ui.github.io/dataset-uta4-nasa-tlx), time (mimbcd-ui.github.io/dataset-uta4-time), severity rates
+(mimbcd-ui.github.io/dataset-uta4-rates), and images (mimbcd-ui.github.io/dataset-uta4-dicom).
+3N: the number of users (Clinicians); Fvar: the F-test used for comparing the factors of the total de-
+viation per each variable ( var) categorized by clinical experience; Mvar: Mean value of the variable
+(var);SDvar: the Standard Deviation (SD) per each variable ( var).5.2.4 BIRADS Classification. The first and second order statistics
+of the BIRADS classification is shown in Figure 2. The mean values
+are referenced to the patient BIRADS (previously performed by
+the expert), that is, we have (from left to right) the patients P1,P2
+andP3, with BIRADS real= 2, BIRADS real= 5 and BIRADS real= 3,
+respectively. From this figure, it is clear that the Multi-Modality
+performs better, since the most severe BIRADS exhibits the smaller
+mean and variance ( |BIRADS real- BIRADS provided |) in the most
+of the cases. Also note that for the most problematic patient (in
+this case P2 scored with BIRADS =5) the multi-modal largely
+outperforms the Single-Modality setting.
+Figure 2: BIRADS variations distribution among the 31 clinicians. We subtract the ex-
+pert classification from the classification performed by each clinician (the closer to zero
+the graph is, the greater the classification is). The ordinate axis represent the BIRADS Val-
+uesof a scale between 1 to 5. The abscissas axis represents each Patient ( i.e.,P1,P2andP3)
+with both Single-Modality (SM) and Multi-Modality (MM). The rhombus represents the SD.
+5.3 Qualitative Analysis
+Clinicians were invited to give some feedback about the UI dur-
+ing the open interviews. We received several positive comments
+regarding our BreastScreening system. At the end, several clinicians
+(19/31) answered that the assistant will be an asset of an immense
+importance for the current RR situation: “The system will be a great
+asset for us” (C6). Another positive answer was the one related to
+the frequency of use (28/31) for this new assistant regarding the
+current system used by the clinicians on the daily practice: “I would
+like to frequently use your system on my daily practice” (C1).
+6 CONCLUSION
+Medical imaging systems provide a promising but challenging prob-
+lem for HCI research. In this paper, we presented field research,
+design and comparative deployment of a multimodal user interface
+for breast screening, BreastScreening is a proof-of-concept proto-
+type developed to embody the emerging design goals from the
+underlying clinical context. Our work and contributions included:
+a) identifying the main clinical workflow issues, the interaction
+cognitive load challenges [ 8] and the opportunities; b) establishing
+a set of design goals for medical imaging design; c) the design, re-
+flections and in-situ evaluation of BreastScreening supporting the
+clinical translation; and d) the impact evidence of Multi-Modality
+in diagnosing and severity classification of breast lesions with 31
+radiologists in six different clinical institutions. Our results4show
+that the system can lead to more efficient and accurate clinical
+diagnosis.
+4We provide our statistical analysis (mimbcd-ui.github.io/statistical-analysis) supporting this study
+with evidence. Several charts are plotted to help on the visualization of our results."
+"BreastScreening AVI ’20, September 28-October 2, 2020, Salerno, Italy
+REFERENCES
+[1]Faranak Aghaei, Seyedehnafiseh Mirniaharikandehei, Alan B Hollingsworth,
+Rebecca G Stoug, Melanie Pearce, Hong Liu, and Bin Zheng. 2018. Association
+between background parenchymal enhancement of breast MRI and BIRADS
+rating change in the subsequent screening. In Medical Imaging 2018: Imaging
+Informatics for Healthcare, Research, and Applications , Vol. 10579. International
+Society for Optics and Photonics, SPIE, Houston, Texas, United States, 105790R.
+[2]Fabrizio Balducci and Paolo Buono. 2018. Building a Qualified Annotation Dataset
+for Skin Lesion Analysis Trough Gamification (AVI ’18) . ACM, New York, NY,
+USA, Article 36, 5 pages. https://doi.org/10.1145/3206505.3206555
+[3]Duncan P. Brumby, Ann Blandford, Anna L. Cox, Sandy J. J. Gould, and Paul
+Marshall. 2017. Understanding People: A Course on Qualitative and Quantitative
+HCI Research Methods (CHI EA âĂŹ17) . Association for Computing Machinery,
+New York, NY, USA, 1170âĂŞ1173. https://doi.org/10.1145/3027063.3027103
+[4]Carrie J. Cai, Samantha Winter, David Steiner, Lauren Wilcox, and Michael
+Terry. 2019. âĂĲHello AIâĂİ: Uncovering the Onboarding Needs of Medical
+Practitioners for Human-AI Collaborative Decision-Making. Proc. ACM Hum.-
+Comput. Interact. 3, CSCW, Article Article 104 (Nov. 2019), 24 pages. https:
+//doi.org/10.1145/3359206
+[5]Francisco Maria Calisto. 2017. Medical Imaging Multimodality Breast Cancer
+Diagnosis User Interface . Master’s thesis. Instituto Superior Técnico, Avenida
+Rovisco Pais 1, 1049-001 Lisboa - Portugal (EU). A Medical Imaging study for
+Multimodality of Breast Cancer Diagnosis on a novel User Interface.
+[6]Francisco Maria Calisto. 2019. Assistant Introduction: User Testing Guide For A
+Comparison Between Multi-Modality and AI-Assisted Systems . Technical Report.
+Madeira Interactive Technologies Institute. https://doi.org/10.13140/RG.2.2.16566.
+14403/1
+[7]Francisco M. Calisto, Alfredo Ferreira, Jacinto C. Nascimento, and Daniel
+Gonçalves. 2017. Towards Touch-Based Medical Image Diagnosis Annotation (ISS
+’17). ACM, New York, NY, USA, 390–395. https://doi.org/10.1145/3132272.3134111
+[8]Nora Castner, Solveig Klepper, Lena Kopnarski, Fabian Hüttig, Constanze Keutel,
+Katharina Scheiter, Juliane Richter, Thérése Eder, and Enkelejda Kasneci. 2016.
+Overlooking: The Nature of Gaze Behavior and Anomaly Detection in Expert
+Dentists (MCPMD ’18) . ACM, New York, NY, USA, Article 8, 6 pages. https:
+//doi.org/10.1145/3279810.3279845
+[9]Andy Cockburn and Carl Gutwin. 2019. Anchoring Effects and Troublesome
+Asymmetric Transfer in Subjective Ratings (CHI âĂŹ19) . Association for Com-
+puting Machinery, New York, NY, USA, Article Paper 362, 12 pages. https:
+//doi.org/10.1145/3290605.3300592
+[10] Luigi Gallo, Giuseppe De Pietro, Antonio Coronato, and Ivana Marra. 2008.
+Toward a Natural Interface to Virtual Medical Imaging Environments (AVI âĂŹ08) .
+Association for Computing Machinery, New York, NY, USA, 429âĂŞ432. https:
+//doi.org/10.1145/1385569.1385651
+[11] Michael J. Gonzales, Vanice C. Cheung, and Laurel D. Riek. 2015. Designing
+Collaborative Healthcare Technology for the Acute Care Workflow (Pervasive-
+Health âĂŹ15) . ICST (Institute for Computer Sciences, Social-Informatics and
+Telecommunications Engineering), Brussels, BEL, 145âĂŞ152.
+[12] Emilie L Henriksen, Jonathan F Carlsen, Ilse MM Vejborg, Michael B Nielsen,
+and Carsten A Lauridsen. 2018. The efficacy of using computer-aided detection
+(CAD) for detection of breast cancer in mammography screening: a systematic
+review. Acta Radiologica 60, 13–18 (2018), 0284185118770917.
+[13] Takeo Igarashi, Naoyuki Shono, Taichi Kin, and Toki Saito. 2016. Interactive
+Volume Segmentation with Threshold Field Painting (UIST ’16) . ACM, New York,
+NY, USA, 403–413. https://doi.org/10.1145/2984511.2984537
+[14] Sébastien Jodogne. 2018. The Orthanc Ecosystem for Medical Imaging. Journal
+of Digital Imaging 31, 3 (01 Jun 2018), 341–352. https://doi.org/10.1007/s10278-
+018-0082-y
+[15] Panayiotis Koutsabasis and Chris K. Domouzis. 2016. Mid-Air Browsing and Se-
+lection in Image Collections (AVI âĂŹ16) . Association for Computing Machinery,
+New York, NY, USA, 21âĂŞ27. https://doi.org/10.1145/2909132.2909248
+[16] Bongshin Lee, Arjun Srinivasan, John Stasko, Melanie Tory, and Vidya Setlur.
+2018. Multimodal Interaction for Data Visualization (AVI âĂŹ18) . Association for
+Computing Machinery, New York, NY, USA, Article Article 11, 3 pages. https:
+//doi.org/10.1145/3206505.3206602
+[17] Gabriel Maicas, Andrew P. Bradley, Jacinto C. Nascimento, Ian Reid, and Gustavo
+Carneiro. 2018. Training Medical Image Analysis Systems like Radiologists. In
+Medical Image Computing and Computer Assisted Intervention – MICCAI 2018 ,
+Alejandro F. Frangi, Julia A. Schnabel, Christos Davatzikos, Carlos Alberola-
+López, and Gabor Fichtinger (Eds.). Springer Intern. Publishing, Cham, 546–554.
+[18] Gabriel Maicas, Andrew P. Bradley, Jacinto C. Nascimento, Ian Reid, and Gustavo
+Carneiro. 2019. Deep Reinforcement Learning for Detecting Breast Lesions from
+DCE-MRI . Springer Intern. Publishing, Cham, 163–178. https://doi.org/10.1007/
+978-3-030-13969-8_8
+[19] D. O. Medley, C. Santiago, and J. C. Nascimento. 2019. Segmenting The Left
+Ventricle In Cardiac In Cardiac MRI: From Handcrafted To Deep Region Based
+Descriptors. In 2019 IEEE 16th International Symposium on Biomedical Imaging(ISBI 2019) . IEEE, Venice, Italy, 644–648.
+[20] J. C. Nascimento and G. Carneiro. 2019. One shot segmentation: unifying rigid de-
+tection and non-rigid segmentation using elastic regularization. IEEE Transactions
+on Pattern Analysis and Machine Intelligence 1, 2922959 (2019), 1–1.
+[21] Kwan Hoong Ng, Jeannie Hsiu Ding Wong, and Sock Keow Tan. 2017. Technical
+Specifications of Medical Imaging Equipment. In Defining the Medical Imaging
+Requirements for a Rural Health Center . Springer, Singapore, 49–74.
+[22] Louise Oram, Karon MacLean, Philippe Kruchten, and Bruce Forster. 2014. Craft-
+ing Diversity in Radiology Image Stack Scrolling: Control and Annotations (DIS
+’14). ACM, New York, NY, USA, 567–576. https://doi.org/10.1145/2598510.2598585
+[23] Soraia Figueiredo Paulo, Filipe Relvas, Hugo Nicolau, Yosra Rekik, Vanessa
+Machado, JoÃčo Botelho, JosÃľ JoÃčo Mendes, Laurent Grisoni, Joaquim Jorge,
+and Daniel SimÃţes Lopes. 2019. Touchless interaction with medical im-
+ages based on 3D hand cursors supported by single-foot input: A case study
+in dentistry. Journal of Biomedical Informatics 100 (2019), 103316. https:
+//doi.org/10.1016/j.jbi.2019.103316
+[24] Marco Porta. 2006. Browsing Large Collections of Images through Unconven-
+tional Visualization Techniques (AVI âĂŹ06) . Association for Computing Machin-
+ery, New York, NY, USA, 440âĂŞ444. https://doi.org/10.1145/1133265.1133354
+[25] Luís Rosado, Maria João M. Vasconcelos, Fernando Correia, and Nuno Costa.
+2015. A Novel Framework for Supervised Mobile Assessment and Risk Triage of
+Skin Lesions (PervasiveHealth ’15) . ICST (Institute for Computer Sciences, Social-
+Informatics and Telecommunications Engineering), ICST, Brussels, Belgium,
+Belgium, 266–267. http://dl.acm.org/citation.cfm?id=2826165.2826213
+[26] C. Santiago, J. C. Nascimento, and J. S. Marques. 2017. Fast and accurate seg-
+mentation of the LV in MR volumes using a deformable model with dynamic
+programming. In 2017 IEEE International Conference on Image Processing (ICIP) .
+IEEE, Beijing, China, 1747–1751.
+[27] Carlos Santiago, Jacinto C. Nascimento, and Jorge S. Marques. 2018. Fast
+segmentation of the left ventricle in cardiac MRI using dynamic program-
+ming. Computer Methods and Programs in Biomedicine 154 (2018), 9 – 23.
+https://doi.org/10.1016/j.cmpb.2017.10.028
+[28] Maurício Sousa, Daniel Mendes, Soraia Paulo, Nuno Matela, Joaquim Jorge, and
+Daniel Simões Lopes. 2017. VRRRRoom: Virtual Reality for Radiologists in
+the Reading Room (CHI ’17) . ACM, New York, NY, USA, 4057–4062. https:
+//doi.org/10.1145/3025453.3025566
+[29] D.A. Spak, J.S. Plaxco, L. Santiago, M.J. Dryden, and B.E. Dogan. 2017. BI-RADSÂő
+fifth edition: A summary of changes. Diagnostic and Interventional Imaging 98, 3
+(2017), 179 – 190. https://doi.org/10.1016/j.diii.2017.01.001
+[30] preethi Srinivas. 2015. Modeling Clinical Workflow in Daily ICU Rounds to
+Support Task-Based Patient Monitoring and Care (CSCWâĂŹ15 Companion) .
+Association for Computing Machinery, New York, NY, USA, 105âĂŞ108. https:
+//doi.org/10.1145/2685553.2699332
+[31] Mari Tyllinen, Johanna Kaipio, Tinja Lääveri, and Marko H.T. Nieminen. 2016.
+We Need Numbers!: Heuristic Evaluation During Demonstrations (HED) for
+Measuring Usability in IT System Procurement (CHI ’16) . ACM, New York, NY,
+USA, 4129–4141. https://doi.org/10.1145/2858036.2858570
+[32] Trinity Urban, Erik Ziegler, Rob Lewis, Chris Hafey, Cheryl Sadow, Annick D
+Van den Abbeele, and Gordon J Harris. 2017. LesionTracker: Extensible open-
+source zero-footprint web viewer for cancer imaging research and clinical trials.
+Cancer research 77, 21 (2017), e119–e122.
+[33] Boris W. van Schooten, Elisabeth M. A. G. van Dijk, Elena Zudilova-Seinstra,
+Avan Suinesiaputra, and Johan H. C. Reiber. 2010. The Effect of Stereoscopy and
+Motion Cues on 3D Interpretation Task Performance (AVI âĂŹ10) . Association
+for Computing Machinery, New York, NY, USA, 167âĂŞ170. https://doi.org/10.
+1145/1842993.1843023
+[34] Harini Veeraraghavan, Brittany Z. Dashevsky, Natsuko Onishi, Meredith Sadinski,
+Elizabeth Morris, Joseph O. Deasy, and Elizabeth J. Sutton. 2018. Appearance
+Constrained Semi-Automatic Segmentation from DCE-MRI is Reproducible and
+Feasible for Breast Cancer Radiomics: A Feasibility Study. Scientific Reports 8, 1
+(2018), 4838. https://doi.org/10.1038/s41598-018-22980-9
+[35] Lauren Wilcox, Dan Morris, Desney Tan, and Justin Gatewood. 2010. Designing
+Patient-centric Information Displays for Hospitals (CHI ’10) . ACM, New York,
+NY, USA, 2123–2132. https://doi.org/10.1145/1753326.1753650
+[36] Jacob O. Wobbrock, Leah Findlater, Darren Gergle, and James J. Higgins. 2011.
+The Aligned Rank Transform for Nonparametric Factorial Analyses Using Only
+Anova Procedures (CHI ’11) . ACM, New York, NY, USA, 143–146. https://doi.
+org/10.1145/1978942.1978963
+[37] Paweł Woundefinedniak, Andrzej Romanowski, Asim Evren Yantaç, and Morten
+Fjeld. 2014. Notes from the Front Lines: Lessons Learnt from Designing for
+Improving Medical Imaging Data Sharing (NordiCHI âĂŹ14) . Association for
+Computing Machinery, New York, NY, USA, 381âĂŞ390. https://doi.org/10.1145/
+2639189.2639256
+[38] Zizhao Zhang, Lin Yang, and Yefeng Zheng. 2018. Translating and Segmenting
+Multimodal Medical Volumes With Cycle- and Shape-Consistency Generative
+Adversarial Network. In The IEEE Conference on Computer Vision and Pattern
+Recognition (CVPR) . IEEE, Salt Lake City, Utah, USA, 9242–9251."
