@@ -29,7 +29,6 @@ COPY requirements.txt /app/
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy your Python code into the Docker container
-COPY Chatbot.ipynb /app
 COPY app.py /app
 
 # Copy the rest of the app files
