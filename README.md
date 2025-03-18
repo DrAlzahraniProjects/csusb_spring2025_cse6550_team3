@@ -53,9 +53,9 @@ For Streamlit:
 
 - Once the container starts, Open browser at http://127.0.0.1:2503/team3s25
   
-google colab:
+Google colab:
 
-- https://colab.research.google.com/drive/1FfSykhH7YY8WYXm7fRexydGGmYQM_T9O?usp=sharing
+- https://colab.research.google.com/drive/1OICG-s8bcIehEFRvmFZXEZantEJLWayz?usp=sharing
 
 Alternatively, it can be accessed via the CSE department web server:
 
