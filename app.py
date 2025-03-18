@@ -241,7 +241,7 @@ def rerank_sentences(query, sentences):
     rerank_prompt = (
         "You are an AI tasked with ranking sentences based on their relevance to a query. "
         "For each sentence, provide a relevance score between 0 and 1 (where 1 is highly relevant) "
-        "and a brief explanation. Return the results in this format:\n"
+        "and a brief explanation. Return the results in this format exactly, do not bold the words:\n"
         "Sentence: <sentence>\nScore: <score>\nExplanation: <explanation>\n\n"
         "Query: '{}'\n\n"
         "Sentences to rank:\n{}"
