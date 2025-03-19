@@ -131,7 +131,7 @@ chat = init_chat_model("llama3-8b-8192", model_provider="groq")
 # 3. Initialize Session State Variables
 if "messages" not in st.session_state:
     st.session_state.messages = [
-        SystemMessage(content="Hey, I'm an AI research helper. Feel free to ask me anything about AI research.")
+        SystemMessage(content="You are an AI research helper. Respond with EXTREMELY concise answers only, maximum 1-2 sentences. Never use lists or bullet points. Keep responses under 25 words whenever possible.")
     ]
 if "conf_matrix" not in st.session_state:
     st.session_state.conf_matrix = np.zeros((2, 2), dtype=int)
@@ -309,7 +309,7 @@ if st.button("Start AI-to-AI Conversation", key="run_conversation", help="Click 
             "How does the ensemble of CatBoost, XGBoost, and LightGBM compare to deep learning models trained end-to-end on histopathology images?"
         ]
         alpha_prompt = "You are Alpha, an AI researcher. Provide only the rephrased version of this question, keeping its meaning the same, without any additional text: '{}'"
-        beta_prompt = "You are Beta, an AI assistant. Using the provided context, generate a concise answer to the following question: '{}'"
+        beta_prompt = "You are Beta, an AI assistant. Generate an EXTREMELY concise answer (1-2 sentences maximum, under 25 words if possible) to this question using only the provided context: '{}'"
     
         messages = [SystemMessage(content="This is an AI-to-AI conversation. Alpha will ask a question, and Beta will respond using the re-ranked corpus context.")]
         st.session_state.conversation_history = []
@@ -346,7 +346,10 @@ if st.button("Start AI-to-AI Conversation", key="run_conversation", help="Click 
                   if reranked:
                       context = reranked[0][0]  # Use the top-ranked sentence
                       beta_input = beta_prompt.format(rephrased_question)
-                      messages_to_send = [SystemMessage(content=f"Context: {context}"), HumanMessage(content=beta_input)]
+                      messages_to_send = [
+                          SystemMessage(content=f"Context: {context}\n\nYou MUST respond in 1-2 sentences maximum. Keep it under 25 words if possible."), 
+                          HumanMessage(content=beta_input)
+                      ]
                       response_beta = chat.invoke(messages_to_send)
                       beta_answer = response_beta.content.strip()
                   else:
@@ -388,7 +391,9 @@ if user_input:
             reranked = rerank_sentences(user_input, similar_sentences)
             context = reranked[0][0] if reranked else "No context available."
         
-        messages_to_send = st.session_state.messages + [SystemMessage(content=f"Context: {context}")]
+        messages_to_send = st.session_state.messages + [
+            SystemMessage(content=f"Context: {context}\n\nYou MUST respond in 1-2 sentences maximum. Keep it under 25 words if possible.")
+        ]
         response = chat.invoke(messages_to_send)
         ai_message = AIMessage(content=response.content)
         st.session_state.messages.append(ai_message)
