@@ -1,24 +1,49 @@
-Docker.txt without Jupyter
-# Use a lightweight Python image
-FROM python:3.10-slim-bookworm
+# Build stage
+FROM python:3.10-slim-bookworm AS builder
 
-# Set working directory
 WORKDIR /app
 
-# Install dependencies for building certain Python packages (like langchain with GROQ support)
-RUN apt-get update && apt-get install -y gcc
+# Install system dependencies required for the chatbot
+RUN apt-get update && apt-get install -y \
+    gcc \
+    libxml2-dev \
+    libxslt-dev \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Copy only requirements first to leverage Docker caching
+# Copy only the requirements file first (leverages Docker caching)
 COPY requirements.txt /app/
 
-# Install dependencies with no cache to save space
+# Install Python dependencies without cache to reduce size
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the app files
+# Final stage
+FROM python:3.10-slim-bookworm
+
+WORKDIR /app
+
+# Install only necessary system dependencies for the final image
+RUN apt-get update && apt-get install -y \
+    libapache2-mod-proxy-uwsgi \
+    apache2 \
+    apache2-utils \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Copy the installed dependencies from the builder stage
+COPY --from=builder /app /app
+
+# Copy application files
 COPY . /app/
 
 # Expose the necessary port for Streamlit
 EXPOSE 2503
 
-# Start Streamlit
-CMD ["bash", "-c", "python3 go-spider.py & streamlit run app.py --server.port=2503 --server.address=0.0.0.0"]
+# Set up Apache proxy configurations
+RUN echo "ProxyPass /team3s25 http://localhost:2503/team3s25" >> /etc/apache2/sites-available/000-default.conf && \
+    echo "ProxyPassReverse /team3s25 http://localhost:2503/team3s25" >> /etc/apache2/sites-available/000-default.conf && \
+    echo "RewriteRule /team3s25/(.*) ws://localhost:2503/team3s25/$1 [P,L]" >> /etc/apache2/sites-available/000-default.conf
+
+# Enable necessary Apache modules
+RUN a2enmod proxy proxy_http rewrite
+
+# Start Apache and Streamlit
+CMD ["sh", "-c", "apache2ctl start & streamlit run app.py --server.port=2503 --server.baseUrlPath=/team3s25"]
