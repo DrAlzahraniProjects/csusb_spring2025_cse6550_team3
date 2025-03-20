@@ -4,7 +4,7 @@
 CONTAINER_NAME="team3s25-app"
 VOLUME_NAME="scrapy_output"
 PORT_NUM=2503
-J_PORTNUM=2513
+# J_PORTNUM removed since it's not needed anymore
  
 # Prompt user for API key
 echo "Enter your Groq-API key:"
@@ -30,8 +30,7 @@ if [ $(docker ps -q -f name=$CONTAINER_NAME) ]; then
 fi
 
 # Running Docker Image
-docker run -d -p $PORT_NUM:$PORT_NUM -p $J_PORTNUM:$J_PORTNUM --name $CONTAINER_NAME -e GROQ_API_KEY="$GROQ_API_KEY" -v scrapy_output:/data $CONTAINER_NAME
+docker run -d -p $PORT_NUM:$PORT_NUM --name $CONTAINER_NAME -e GROQ_API_KEY="$GROQ_API_KEY" -v scrapy_output:/data $CONTAINER_NAME
  
-# Output where the apps are running
+# Output where the app is running
 echo "Streamlit is available at: http://localhost:$PORT_NUM/team3s25"
-echo "Jupyter Notebook is available at: http://localhost:$J_PORTNUM/team3s25/jupyter"
