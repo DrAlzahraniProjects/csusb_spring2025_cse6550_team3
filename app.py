@@ -241,7 +241,7 @@ def rerank_sentences(query, sentences):
     rerank_prompt = (
         "You are an AI tasked with ranking sentences based on their relevance to a query. "
         "For each sentence, provide a relevance score between 0 and 1 (where 1 is highly relevant) "
-        "and a brief explanation. Return the results in this format:\n"
+        "and a brief explanation. Return the results in this format exactly, do not bold the words:\n"
         "Sentence: <sentence>\nScore: <score>\nExplanation: <explanation>\n\n"
         "Query: '{}'\n\n"
         "Sentences to rank:\n{}"
@@ -350,7 +350,10 @@ if st.button("Start AI-to-AI Conversation", key="run_conversation", help="Click 
                       response_beta = chat.invoke(messages_to_send)
                       beta_answer = response_beta.content.strip()
                   else:
-                      beta_answer = "No context available."
+                      beta_input = beta_prompt.format(rephrased_question)
+                      messages_to_send = [SystemMessage(content=f"Context: {similar_sentences}"), HumanMessage(content=beta_input)]
+                      response_beta = chat.invoke(messages_to_send)
+                      beta_answer = response_beta.content.strip()
 
             messages.append(AIMessage(content=beta_answer))
     
