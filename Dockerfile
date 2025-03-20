@@ -1,17 +1,13 @@
-# Use a lightweight Python base image
-FROM python:3.10-slim-bookworm
+# Build stage
+FROM python:3.10-slim-bookworm AS builder
 
-# Set working directory
 WORKDIR /app
 
 # Install system dependencies required for the chatbot
 RUN apt-get update && apt-get install -y \
     gcc \
-    libapache2-mod-proxy-uwsgi \
     libxml2-dev \
     libxslt-dev \
-    apache2 \
-    apache2-utils \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Copy only requirements file first (leverages Docker caching)
@@ -19,6 +15,21 @@ COPY requirements.txt /app/
 
 # Install Python dependencies without cache to reduce size
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Final stage
+FROM python:3.10-slim-bookworm
+
+WORKDIR /app
+
+# Install only necessary system dependencies for the final image
+RUN apt-get update && apt-get install -y \
+    libapache2-mod-proxy-uwsgi \
+    apache2 \
+    apache2-utils \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Copy the installed dependencies from the builder stage
+COPY --from=builder /app /app
 
 # Copy application files
 COPY . /app/
