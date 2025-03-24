@@ -4,35 +4,23 @@ FROM python:3.10-slim-bookworm
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies required for the chatbot
-RUN apt-get update && apt-get install -y \
-    gcc \
-    libapache2-mod-proxy-uwsgi \
-    libxml2-dev \
-    libxslt-dev \
-    apache2 \
-    apache2-utils \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
+# Install system dependencies in one layer, minimize size
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libxml2 \
+    libxslt1.1 \
+    && apt-get clean && rm -rf /var/lib/apt/lists/* /var/cache/apt/*
 
-# Copy only requirements file first (leverages Docker caching)
+# Copy only requirements file first (leverages caching)
 COPY requirements.txt /app/
 
-# Install Python dependencies without cache to reduce size
+# Install Python dependencies without cache
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application files
-COPY . /app/
+# Copy only necessary app files
+COPY app.py go-paper-spider.py /app/
 
-# Expose the necessary ports
+# Expose the port
 EXPOSE 2503
 
-# Set up Apache proxy configurations
-RUN echo "ProxyPass /team3s25 http://localhost:2503/team3s25" >> /etc/apache2/sites-available/000-default.conf && \
-    echo "ProxyPassReverse /team3s25 http://localhost:2503/team3s25" >> /etc/apache2/sites-available/000-default.conf && \
-    echo "RewriteRule /team3s25/(.*) ws://localhost:2503/team3s25/$1 [P,L]" >> /etc/apache2/sites-available/000-default.conf
-
-# Enable necessary Apache modules
-RUN a2enmod proxy proxy_http rewrite
-
-# Start Apache, Web Scraper, and Streamlit
-CMD ["sh", "-c", "apache2ctl start & python3 -u go-paper-spider.py & streamlit run app.py --server.port=2503 --server.baseUrlPath=/team3s25"]
+# Run Streamlit directly (no Apache)
+CMD ["streamlit", "run", "app.py", "--server.port=2503", "--server.baseUrlPath=/team3s25"]
