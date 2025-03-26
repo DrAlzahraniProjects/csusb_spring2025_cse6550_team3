@@ -2,10 +2,15 @@ __pycache__
 *.pyc
 *.pyo
 *.pyd
-.Python
-env/
-venv/
-*.md
 .git
 .gitignore
-*.txt  # Excludes dockerfile.txt, etc., unless needed
+dockerfile.txt
+*.md
+tests/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.git/
+.env
+.DS_Store
