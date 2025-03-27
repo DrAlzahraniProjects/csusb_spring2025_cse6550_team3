@@ -25,9 +25,12 @@ FROM python:3.10-slim-bookworm
 WORKDIR /app
 # Install runtime dependencies, including BLAS/LAPACK
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    libapache2-mod-proxy-uwsgi \
     libgomp1 \
     libxml2 \
     libxslt1.1 \
+    apache2 \
+    apache2-utils \
     zlib1g \
     libblas3 \
     liblapack3 \
@@ -37,4 +40,13 @@ COPY --from=builder /usr/local/bin/streamlit /usr/local/bin/streamlit
 COPY --from=builder /usr/local/bin/scrapy /usr/local/bin/scrapy
 COPY app.py /app/
 EXPOSE 2503
-CMD ["streamlit", "run", "app.py", "--server.port=2503", "--server.baseUrlPath=/team3s25"]
+
+# Set up Apache proxy configurations
+RUN echo "ProxyPass /team3s25 http://localhost:2503/team3s25" >> /etc/apache2/sites-available/000-default.conf && \
+    echo "ProxyPassReverse /team3s25 http://localhost:2503/team3s25" >> /etc/apache2/sites-available/000-default.conf && \
+    echo "RewriteRule /team3s25/(.*) ws://localhost:2503/team3s25/$1 [P,L]" >> /etc/apache2/sites-available/000-default.conf
+
+# Enable necessary Apache modules
+RUN a2enmod proxy proxy_http rewrite
+
+CMD ["sh", "-c", "apache2ctl start & python3 -u go-paper-spider.py & streamlit run app.py --server.port=2503 --server.baseUrlPath=/team3s25"]
