@@ -1,29 +1,44 @@
-# Use a lightweight Python base image
-FROM python:3.10-slim-bookworm
-
-# Set working directory
+# Stage 1: Build Stage
+FROM python:3.10-slim-bookworm AS builder
 WORKDIR /app
-
-# Install system dependencies required for the chatbot
-RUN apt-get update && apt-get install -y \
+# Install build dependencies, including BLAS/LAPACK
+RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
-    libapache2-mod-proxy-uwsgi \
+    g++ \
     libxml2-dev \
     libxslt-dev \
+    zlib1g-dev \
+    libblas-dev \
+    liblapack-dev \
+    && rm -rf /var/lib/apt/lists/*
+COPY requirements.txt .
+# Update pip, install torch CPU-only first, then the rest
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir torch==2.2.0 --index-url https://download.pytorch.org/whl/cpu \
+    && pip install --no-cache-dir -r requirements.txt \
+    && find /usr/local/lib/python3.10/site-packages -type d -name "tests" -exec rm -rf {} + \
+    && find /usr/local/lib/python3.10/site-packages -type d -name "__pycache__" -exec rm -rf {} + \
+    && find /usr/local/lib/python3.10/site-packages -type f -name "*.pyc" -exec rm -f {} +
+
+# Stage 2: Final Stage
+FROM python:3.10-slim-bookworm
+WORKDIR /app
+# Install runtime dependencies, including BLAS/LAPACK
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libapache2-mod-proxy-uwsgi \
+    libgomp1 \
+    libxml2 \
+    libxslt1.1 \
     apache2 \
     apache2-utils \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
-
-# Copy only requirements file first (leverages Docker caching)
-COPY requirements.txt /app/
-
-# Install Python dependencies without cache to reduce size
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy application files
-COPY . /app/
-
-# Expose the necessary ports
+    zlib1g \
+    libblas3 \
+    liblapack3 \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
+COPY --from=builder /usr/local/bin/streamlit /usr/local/bin/streamlit
+COPY --from=builder /usr/local/bin/scrapy /usr/local/bin/scrapy
+COPY app.py /app/
 EXPOSE 2503
 
 # Set up Apache proxy configurations
@@ -34,5 +49,4 @@ RUN echo "ProxyPass /team3s25 http://localhost:2503/team3s25" >> /etc/apache2/si
 # Enable necessary Apache modules
 RUN a2enmod proxy proxy_http rewrite
 
-# Start Apache, Web Scraper, and Streamlit
 CMD ["sh", "-c", "apache2ctl start & python3 -u go-paper-spider.py & streamlit run app.py --server.port=2503 --server.baseUrlPath=/team3s25"]
