@@ -283,6 +283,8 @@ def rerank_sentences(query, sentences):
 
 # 7. Display Chat Messages
 for message in st.session_state.messages:
+    if isinstance(message, SystemMessage):
+        continue  # Skip displaying system messages
     role = "user" if isinstance(message, HumanMessage) else "assistant"
     with st.chat_message(role):
         st.write(message.content)
@@ -294,92 +296,92 @@ for role, content in st.session_state.conversation_history:
         st.write(content)
 
 # 9. "Start AI-to-AI Conversation" Button (Unified Styling)
-if st.button("Start AI-to-AI Conversation", key="run_conversation", help="Click to start AI-to-AI conversation"):
-    def ai_to_ai_conversation():
-        original_questions = [
-            "What is the main advantage of using Curvature-based Feature Selection (CFS) over PCA for dimensionality reduction?",
-            "How does the Inception-ResNet-v2 model contribute to feature extraction in breast tumor classification?",
-            "What are the key classifiers used in the ensemble method for breast tumor classification, and why were they chosen?",
-            "How does Menger Curvature help in ranking features in Electronic Health Records (EHR) data classification?",
-            "What are the main challenges in handling missing data in medical datasets, and how does the first paper address this issue?",
-            "How does the performance of CFS compare to other feature selection methods on completely different datasets outside the ones mentioned?",
-            "What specific preprocessing steps were used for data normalization in each classification experiment?",
-            "How would the proposed breast cancer classification model perform on a realtime clinical setup?",
-            "Can the Curvature-based Feature Selection method be adapted to non-medical domains like finance or cybersecurity?",
-            "How does the ensemble of CatBoost, XGBoost, and LightGBM compare to deep learning models trained end-to-end on histopathology images?"
-        ]
-        alpha_prompt = "You are Alpha, an AI researcher. Provide only the rephrased version of this question, keeping its meaning the same, without any additional text: '{}'"
-        beta_prompt = "You are Beta, an AI assistant. Generate a concise answer limited to one paragraph to this question using only the provided context: '{}'"
+# if st.button("Start AI-to-AI Conversation", key="run_conversation", help="Click to start AI-to-AI conversation"):
+#     def ai_to_ai_conversation():
+#         original_questions = [
+#             "What is the main advantage of using Curvature-based Feature Selection (CFS) over PCA for dimensionality reduction?",
+#             "How does the Inception-ResNet-v2 model contribute to feature extraction in breast tumor classification?",
+#             "What are the key classifiers used in the ensemble method for breast tumor classification, and why were they chosen?",
+#             "How does Menger Curvature help in ranking features in Electronic Health Records (EHR) data classification?",
+#             "What are the main challenges in handling missing data in medical datasets, and how does the first paper address this issue?",
+#             "How does the performance of CFS compare to other feature selection methods on completely different datasets outside the ones mentioned?",
+#             "What specific preprocessing steps were used for data normalization in each classification experiment?",
+#             "How would the proposed breast cancer classification model perform on a realtime clinical setup?",
+#             "Can the Curvature-based Feature Selection method be adapted to non-medical domains like finance or cybersecurity?",
+#             "How does the ensemble of CatBoost, XGBoost, and LightGBM compare to deep learning models trained end-to-end on histopathology images?"
+#         ]
+#         alpha_prompt = "You are Alpha, an AI researcher. Provide only the rephrased version of this question, keeping its meaning the same, without any additional text: '{}'"
+#         beta_prompt = "You are Beta, an AI assistant. Generate a concise answer limited to one paragraph to this question using only the provided context: '{}'"
     
-        messages = [SystemMessage(content="This is an AI-to-AI conversation. Alpha will ask a question, and Beta will respond using the re-ranked corpus context.")]
-        st.session_state.conversation_history = []
+#         messages = [SystemMessage(content="This is an AI-to-AI conversation. Alpha will ask a question, and Beta will respond using the re-ranked corpus context.")]
+#         st.session_state.conversation_history = []
     
-        for i, original_question in enumerate(original_questions):
-            is_answerable = i < 5
-            with st.spinner(f"Alpha is asking... ({i+1}/10)"):
-                alpha_input = alpha_prompt.format(original_question)
-                response_alpha = chat.invoke([HumanMessage(content=alpha_input)])
-                rephrased_question = response_alpha.content.strip().split('\n')[0].strip()
-                messages.append(HumanMessage(content=rephrased_question))
+#         for i, original_question in enumerate(original_questions):
+#             is_answerable = i < 5
+#             with st.spinner(f"Alpha is asking... ({i+1}/10)"):
+#                 alpha_input = alpha_prompt.format(original_question)
+#                 response_alpha = chat.invoke([HumanMessage(content=alpha_input)])
+#                 rephrased_question = response_alpha.content.strip().split('\n')[0].strip()
+#                 messages.append(HumanMessage(content=rephrased_question))
     
-            with st.chat_message("user"):
-                st.write(f"**Alpha:** {rephrased_question}")
-            st.session_state.conversation_history.append(("user", f"**Alpha:** {rephrased_question}"))
+#             with st.chat_message("user"):
+#                 st.write(f"**Alpha:** {rephrased_question}")
+#             st.session_state.conversation_history.append(("user", f"**Alpha:** {rephrased_question}"))
     
-            beta_placeholder = st.empty()
-            with beta_placeholder.chat_message("assistant"):
-                st.write("**Beta:** Thinking...")
+#             beta_placeholder = st.empty()
+#             with beta_placeholder.chat_message("assistant"):
+#                 st.write("**Beta:** Thinking...")
     
-            time.sleep(1.5)
+#             time.sleep(1.5)
     
-            with st.spinner(f"Beta is responding... ({i+1}/10)"):
-              # Step 1: Retrieve top-k similar sentences
-              similar_sentences, distances = retrieve_similar_sentences(rephrased_question, k=3)
+#             with st.spinner(f"Beta is responding... ({i+1}/10)"):
+#               # Step 1: Retrieve top-k similar sentences
+#               similar_sentences, distances = retrieve_similar_sentences(rephrased_question, k=3)
             
-              if not similar_sentences:
-                  beta_answer = "No context available."
-              else:
-                  # Step 2: Re-rank using LLM (restored as original)
-                  reranked = rerank_sentences(rephrased_question, similar_sentences)
+#               if not similar_sentences:
+#                   beta_answer = "No context available."
+#               else:
+#                   # Step 2: Re-rank using LLM (restored as original)
+#                   reranked = rerank_sentences(rephrased_question, similar_sentences)
 
-                  # Step 3: Use top-ranked sentence(s) as context
-                  if reranked:
-                      context = reranked[0][0]  # Use the top-ranked sentence
-                      beta_input = beta_prompt.format(rephrased_question)
-                      messages_to_send = [
-                          SystemMessage(content=f"Context: {context}\n\nYou MUST respond with a concise answer limited to one paragraph."), 
-                          HumanMessage(content=beta_input)
-                      ]
-                      response_beta = chat.invoke(messages_to_send)
-                      beta_answer = response_beta.content.strip()
-                  else:
-                      beta_input = beta_prompt.format(rephrased_question)
-                      messages_to_send = [SystemMessage(content=f"Context: {similar_sentences}"), HumanMessage(content=beta_input)]
-                      response_beta = chat.invoke(messages_to_send)
-                      beta_answer = response_beta.content.strip()
+#                   # Step 3: Use top-ranked sentence(s) as context
+#                   if reranked:
+#                       context = reranked[0][0]  # Use the top-ranked sentence
+#                       beta_input = beta_prompt.format(rephrased_question)
+#                       messages_to_send = [
+#                           SystemMessage(content=f"Context: {context}\n\nYou MUST respond with a concise answer limited to one paragraph."), 
+#                           HumanMessage(content=beta_input)
+#                       ]
+#                       response_beta = chat.invoke(messages_to_send)
+#                       beta_answer = response_beta.content.strip()
+#                   else:
+#                       beta_input = beta_prompt.format(rephrased_question)
+#                       messages_to_send = [SystemMessage(content=f"Context: {similar_sentences}"), HumanMessage(content=beta_input)]
+#                       response_beta = chat.invoke(messages_to_send)
+#                       beta_answer = response_beta.content.strip()
 
-            messages.append(AIMessage(content=beta_answer))
+#             messages.append(AIMessage(content=beta_answer))
     
-            with beta_placeholder.chat_message("assistant"):
-                st.write(f"**Beta:** {beta_answer}")
-            st.session_state.conversation_history.append(("assistant", f"**Beta:** {beta_answer}"))
+#             with beta_placeholder.chat_message("assistant"):
+#                 st.write(f"**Beta:** {beta_answer}")
+#             st.session_state.conversation_history.append(("assistant", f"**Beta:** {beta_answer}"))
     
-            # Update confusion matrix
-            if is_answerable and "No context available" not in beta_answer:
-                st.session_state.conf_matrix[0, 0] += 1  # TP
-            elif is_answerable and "No context available" in beta_answer:
-                st.session_state.conf_matrix[0, 1] += 1  # FN
-            elif not is_answerable and "No context available" in beta_answer:
-                st.session_state.conf_matrix[1, 1] += 1  # TN
-            else:
-                st.session_state.conf_matrix[1, 0] += 1  # FP
+#             # Update confusion matrix
+#             if is_answerable and "No context available" not in beta_answer:
+#                 st.session_state.conf_matrix[0, 0] += 1  # TP
+#             elif is_answerable and "No context available" in beta_answer:
+#                 st.session_state.conf_matrix[0, 1] += 1  # FN
+#             elif not is_answerable and "No context available" in beta_answer:
+#                 st.session_state.conf_matrix[1, 1] += 1  # TN
+#             else:
+#                 st.session_state.conf_matrix[1, 0] += 1  # FP
     
-            if i < len(original_questions) - 1:
-                time.sleep(0.5)
+#             if i < len(original_questions) - 1:
+#                 time.sleep(0.5)
     
-        st.success("AI-to-AI conversation completed!")
+#         st.success("AI-to-AI conversation completed!")
     
-    ai_to_ai_conversation()
+#     ai_to_ai_conversation()
 
 # 10. Chat Input at the Bottom
 user_input = st.chat_input("Type your message here...")
