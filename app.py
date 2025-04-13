@@ -9,6 +9,9 @@ from sentence_transformers import SentenceTransformer
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 import time
 
+# ✅ Fix: Initialize session state for messages at the top
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 # ------------------- Custom CSS for Light/Dark Mode and Unified Button Styling -------------------
 st.markdown(
     """
