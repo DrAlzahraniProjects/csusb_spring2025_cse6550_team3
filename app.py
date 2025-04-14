@@ -139,6 +139,8 @@ if "conversation_history" not in st.session_state:
     st.session_state.conversation_history = []
 if "last_ai_response" not in st.session_state:
     st.session_state.last_ai_response = None
+if "question_times" not in st.session_state:
+    st.session_state.question_times = []
 
 # 4. Layout the Main Chat Container
 st.markdown('<div class="chat-container">', unsafe_allow_html=True)
@@ -152,7 +154,6 @@ is_new_vector_database = True
 model = None
 index = None
 chunks = []
-
 
 def create_vector_database():
     global model, chunks, index
@@ -228,6 +229,14 @@ else:
     else:
         create_vector_database()
 
+def check_rate_limit():
+    """Check if the user has exceeded 10 questions in the last 60 seconds."""
+    current_time = time.time()
+    # Remove timestamps older than 60 seconds
+    st.session_state.question_times = [t for t in st.session_state.question_times if current_time - t < 60]
+    if len(st.session_state.question_times) >= 10:
+        return False, "You’ve reached the limit of 10 questions per minute because the server has limited resources. Please try again in 3 minutes."
+    return True, None
 
 def retrieve_similar_sentences(query_sentence, k=3):
     """Retrieve top-k similar sentences from the corpus."""
@@ -288,7 +297,6 @@ for message in st.session_state.messages:
     role = "user" if isinstance(message, HumanMessage) else "assistant"
     with st.chat_message(role):
         st.write(message.content)
-
 
 # 8. Display AI-to-AI Conversation History
 for role, content in st.session_state.conversation_history:
@@ -386,24 +394,29 @@ for role, content in st.session_state.conversation_history:
 # 10. Chat Input at the Bottom
 user_input = st.chat_input("Type your message here...")
 if user_input:
-    st.session_state.messages.append(HumanMessage(content=user_input))
-    with st.spinner("Thinking..."):
-        # Retrieve and re-rank for user input
-        similar_sentences, _ = retrieve_similar_sentences(user_input, k=3)
-        if not similar_sentences:
-            context = "No context available."
-        else:
-            reranked = rerank_sentences(user_input, similar_sentences)
-            context = reranked[0][0] if reranked else "No context available."
-        
-        messages_to_send = st.session_state.messages + [
-            SystemMessage(content=f"Context: {context}\n\nYou MUST respond with a concise answer limited to one paragraph.")
-        ]
-        response = chat.invoke(messages_to_send)
-        ai_message = AIMessage(content=response.content)
-        st.session_state.messages.append(ai_message)
-        st.session_state.last_ai_response = ai_message.content  # Save latest AI response for rating
-    st.rerun()
+    can_ask, error_message = check_rate_limit()
+    if not can_ask:
+        st.error(error_message)
+    else:
+        st.session_state.question_times.append(time.time())
+        st.session_state.messages.append(HumanMessage(content=user_input))
+        with st.spinner("Thinking..."):
+            # Retrieve and re-rank for user input
+            similar_sentences, _ = retrieve_similar_sentences(user_input, k=3)
+            if not similar_sentences:
+                context = "No context available."
+            else:
+                reranked = rerank_sentences(user_input, similar_sentences)
+                context = reranked[0][0] if reranked else "No context available."
+            
+            messages_to_send = st.session_state.messages + [
+                SystemMessage(content=f"Context: {context}\n\nYou MUST respond with a concise answer limited to one paragraph.")
+            ]
+            response = chat.invoke(messages_to_send)
+            ai_message = AIMessage(content=response.content)
+            st.session_state.messages.append(ai_message)
+            st.session_state.last_ai_response = ai_message.content  # Save latest AI response for rating
+        st.rerun()
 
 # 11. Display Rating Buttons Below Chat Input (Unified Styling)
 if st.session_state.last_ai_response:
