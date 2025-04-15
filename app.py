@@ -146,87 +146,114 @@ st.markdown("<h2 class='title'>TEAM3 Chatbot - AI Research Helper</h2>", unsafe_
 st.markdown("<p class='subtitle'>Welcome! Ask me about AI research, and I'll do my best to assist you.</p>", unsafe_allow_html=True)
 
 is_new__papers_path = "/data/is_new_pdfs.txt"
-faiss_index_file_path = "/data/faiss_index.index"
-chunks_file_path = "/data/chunks.txt"
+faiss_index_file_path = "/app/data/faiss_index.index"
+chunks_file_path = "/app/data/chunks.txt"
 is_new_vector_database = True
 model = None
 index = None
 chunks = []
 
+model = SentenceTransformer('all-MiniLM-L6-v2')
 
-def create_vector_database():
-    global model, chunks, index
-    # Path to the output file in the mounted volume
-    output_file_path = "/data/papers_output.csv" 
+#Load chunks
+# Open the file in read mode
+with open(chunks_file_path, 'r') as f:
+    # Read each line from the file
+    for line in f:
+        # Strip the newline character and add the line to the chunks list
+        chunks.append(line.strip())
 
-    df = pd.read_csv(output_file_path)
+# Step 2: Read the index using FAISS
+index = faiss.read_index(faiss_index_file_path)
 
-    if 'text' not in df.columns:
-        raise ValueError("CSV file must have a 'text' column")
+# def create_vector_database():
+#     global model, chunks, index
 
-    sentences = df['text'].tolist()
+#     # Path to your JSON file
+#     input_file_path = "/data/papers_output.json"
 
-    # Combine all sentences into a single text string (if needed)
-    csv_text = " ".join(sentences)
+#     # Download the FAISS index file from Google Drive
+#     json_file_id = '1Rtcdans4EUxuZK16kub0em2L4sONK5BY'
+#     gdown.download(f'https://drive.google.com/uc?id={json_file_id}', input_file_path, quiet=False)
 
-    # Split text into smaller chunks for better embedding and retrieval
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=50)
-    chunks = text_splitter.split_text(csv_text)
+#     # === Load JSON ===
+#     with open(input_file_path, 'r', encoding='utf-8') as f:
+#         data = json.load(f)
 
-    # Load a pre-trained sentence embedding model
-    model = SentenceTransformer('all-MiniLM-L6-v2')
+#     if not isinstance(data, list):
+#         data = [data]  # Ensure list of entries
 
-    # Open the file in write mode
-    with open(chunks_file_path, 'w') as f:
-        for chunk in chunks:
-            f.write(chunk + '\n')  # Write each chunk on a new line
+#     # === Normalize JSON to flat DataFrame ===
+#     df = pd.json_normalize(data)
+#     df.fillna("", inplace=True)
 
-    # Generate embeddings for the sentences
-    embeddings = model.encode(chunks).astype('float32')
+#     # === Combine all fields into a single text column ===
+#     df["text"] = df.astype(str).agg(" ".join, axis=1)
 
-    # Create a FAISS index
-    index = faiss.IndexFlatL2(embeddings.shape[1])  # L2 distance
-    index.add(embeddings)  # Add embeddings to the index
-    faiss.write_index(index, faiss_index_file_path)
+#     # === Prepare sentences ===
+#     sentences = df["text"].tolist()
+#     json_text = " ".join(sentences)
 
-#check if vector database already exists
-# Load the persisted set of processed URLs when the spider starts
-if os.path.exists(is_new__papers_path):
-    try:
-        # Open the text file
-        with open(is_new__papers_path, mode='r') as txtfile:
-            first_line = txtfile.readline().strip()  # Read the first line and strip whitespace
-            if first_line:  # Check if the line is not empty
-                first_char = first_line[0]
 
-                if first_char == '0':
-                    #Load the vector database
-                    is_new_vector_database = False
-                elif first_char == '1':
-                    #Make a new vector database
-                    is_new_vector_database = True
-    except Exception as e:
-        print(f"Error saving processed files: {e}")
+#     # Split text into smaller chunks for better embedding and retrieval
+#     text_splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=50)
+#     chunks = text_splitter.split_text(json_text)
+
+#     # Load a pre-trained sentence embedding model
+#     model = SentenceTransformer('all-MiniLM-L6-v2')
+
+#     # Open the file in write mode
+#     with open(chunks_file_path, 'w') as f:
+#         for chunk in chunks:
+#             f.write(chunk + '\n')  # Write each chunk on a new line
+
+#     # Generate embeddings for the sentences
+#     embeddings = model.encode(chunks).astype('float32')
+
+#     # Create a FAISS index
+#     index = faiss.IndexFlatL2(embeddings.shape[1])  # L2 distance
+#     index.add(embeddings)  # Add embeddings to the index
+#     faiss.write_index(index, faiss_index_file_path)
+
+# #check if vector database already exists
+# # Load the persisted set of processed URLs when the spider starts
+# if os.path.exists(is_new__papers_path):
+#     try:
+#         # Open the text file
+#         with open(is_new__papers_path, mode='r') as txtfile:
+#             first_line = txtfile.readline().strip()  # Read the first line and strip whitespace
+#             if first_line:  # Check if the line is not empty
+#                 first_char = first_line[0]
+
+#                 if first_char == '0':
+#                     #Load the vector database
+#                     is_new_vector_database = False
+#                 elif first_char == '1':
+#                     #Make a new vector database
+#                     is_new_vector_database = True
+#     except Exception as e:
+#         print(f"Error saving processed files: {e}")
     
-if is_new_vector_database:
-    create_vector_database()
-else:
-    if os.path.exists(faiss_index_file_path):
-        # Load a pre-trained sentence embedding model
-        model = SentenceTransformer('all-MiniLM-L6-v2')
+# if is_new_vector_database:
+#     create_vector_database()
+# else:
+#     if os.path.exists(faiss_index_file_path):
+#         # Load a pre-trained sentence embedding model
+#         model = SentenceTransformer('all-MiniLM-L6-v2')
 
-        #Load chunks
-        # Open the file in read mode
-        with open(chunks_file_path, 'r') as f:
-            # Read each line from the file
-            for line in f:
-                # Strip the newline character and add the line to the chunks list
-                chunks.append(line.strip())
+#         #Load chunks
+#         # Open the file in read mode
+#         with open(chunks_file_path, 'r') as f:
+#             # Read each line from the file
+#             for line in f:
+#                 # Strip the newline character and add the line to the chunks list
+#                 chunks.append(line.strip())
 
-        #Load a saved FAISS index
-        index = faiss.read_index(faiss_index_file_path)
-    else:
-        create_vector_database()
+#         #Load a saved FAISS index
+#         index = faiss.read_index(faiss_index_file_path)
+#     else:
+#         create_vector_database()
+
 
 
 def retrieve_similar_sentences(query_sentence, k=3):
