@@ -1,5 +1,3 @@
-import os
-import json
 from scrapy.crawler import CrawlerProcess
 from scrapy.utils.project import get_project_settings
 from mycrawler.spiders.paperswithcode_spider import PaperSpider
@@ -21,7 +19,6 @@ def run_paper_spider():
         'FEED_EXPORT_FIELDS': ["text"],  # Ensure consistent column order
         'FEED_EXPORTERS': {
         'csv': 'mycrawler.exporters.HeadlessCsvItemExporter',
-        'CLOSESPIDER_ITEMCOUNT': 100,
         },
     })
 
@@ -31,7 +28,7 @@ def run_paper_spider():
 
 def main():
     print("Starting the paper scraping process...")
-    # run_paper_spider()
+    run_paper_spider()
     print("Scraping paper complete...")
 
 if __name__ == "__main__":
