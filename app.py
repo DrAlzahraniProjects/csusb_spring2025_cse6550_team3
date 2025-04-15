@@ -8,8 +8,6 @@ import faiss
 from sentence_transformers import SentenceTransformer
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 import time
-import json
-import gdown
 
 # ------------------- Custom CSS for Light/Dark Mode and Unified Button Styling -------------------
 st.markdown(
@@ -148,20 +146,12 @@ st.markdown("<h2 class='title'>TEAM3 Chatbot - AI Research Helper</h2>", unsafe_
 st.markdown("<p class='subtitle'>Welcome! Ask me about AI research, and I'll do my best to assist you.</p>", unsafe_allow_html=True)
 
 is_new__papers_path = "/data/is_new_pdfs.txt"
-faiss_index_file_path = "/data/faiss_index.index"
-chunks_file_path = "/data/chunks.txt"
+faiss_index_file_path = "/app/data/faiss_index.index"
+chunks_file_path = "/app/data/chunks.txt"
 is_new_vector_database = True
 model = None
 index = None
 chunks = []
-
-
-# Download the FAISS index file from Google Drive
-faiss_file_id =  "17C4L-60q7flx5xONhM3e6NNkmDWXo5Cp"
-gdown.download(f'https://drive.google.com/uc?id={faiss_file_id}', faiss_index_file_path, quiet=False)
-
-chunks_file_id = '1IfciGkDzzq4krJ9y1H_E7K-mMhHAqmyi'
-gdown.download(f'https://drive.google.com/uc?id={chunks_file_id}', chunks_file_path, quiet=False)
 
 model = SentenceTransformer('all-MiniLM-L6-v2')
 
