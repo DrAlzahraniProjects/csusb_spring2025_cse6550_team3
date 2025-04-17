@@ -8,6 +8,7 @@ import faiss
 from sentence_transformers import SentenceTransformer
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 import time
+import requests
 
 # ------------------- Custom CSS for Light/Dark Mode and Unified Button Styling -------------------
 st.markdown(
@@ -112,12 +113,79 @@ st.markdown(
     .stSidebar .stButton>button:hover {
         background-color: var(--hover-bg);
     }
+    /* IP verification status styles */
+    .ip-status-allowed {
+        background-color: #d4edda;
+        color: #155724;
+        padding: 10px 15px;
+        border-radius: 5px;
+        margin-bottom: 20px;
+        border: 1px solid #c3e6cb;
+        text-align: center;
+    }
+    .ip-status-denied {
+        background-color: #f8d7da;
+        color: #721c24;
+        padding: 10px 15px;
+        border-radius: 5px;
+        margin-bottom: 20px;
+        border: 1px solid #f5c6cb;
+        text-align: center;
+    }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
+# ------------------- IP Verification Functions -------------------
+
+def get_user_ip() -> str:
+    try:
+        # When Streamlit is running inside a container, the Request object might not be accessible
+        response = requests.get('https://api.ipify.org?format=json', timeout=5)
+        return response.json().get("ip", "")
+    except Exception:
+        return ""
+
+def is_csusb_ip(ip: str) -> bool:
+    return any([
+        ip.startswith("138.23."),
+        ip.startswith("139.182."),
+        ip.startswith("152.79.") 
+    ])
+
 # ------------------- Main App Code -------------------
+
+# Create page title
+# Verify IP address with a subtle but informative indicator at the top
+user_ip = get_user_ip()
+if not is_csusb_ip(user_ip):
+    # Show denied access message with custom HTML
+    st.markdown(
+        f"""
+        <div class="ip-status-denied">
+            <h3>🚫 Access Denied</h3>
+            <p>Your IP address ({user_ip}) is not from the CSUSB campus network.</p>
+            <p>Only users within the CSUSB campus network can access this application.</p>
+        </div>
+        """, 
+        unsafe_allow_html=True
+    )
+    st.stop()
+else:
+    # Add a subtle text indicator at the very top with more descriptive text
+    st.markdown(
+        f"""
+        <div style="text-align: right; font-size: 11px; color: #779977; padding: 2px; margin-top: -15px;">
+        CSUSB IP verification successful: {user_ip} ✓
+        </div>
+        """, 
+        unsafe_allow_html=True
+    )
+
+# Create page title and welcome message - keeping original UI intact
+st.markdown("<h2 class='title'>TEAM3 Chatbot - AI Research Helper</h2>", unsafe_allow_html=True)
+st.markdown("<p class='subtitle'>Welcome! Ask me about AI research, and I'll do my best to assist you.</p>", unsafe_allow_html=True)
 
 # 1. Check for API Key
 api_key = os.getenv("GROQ_API_KEY")
@@ -144,8 +212,6 @@ if "question_times" not in st.session_state:
 
 # 4. Layout the Main Chat Container
 st.markdown('<div class="chat-container">', unsafe_allow_html=True)
-st.markdown("<h2 class='title'>TEAM3 Chatbot - AI Research Helper</h2>", unsafe_allow_html=True)
-st.markdown("<p class='subtitle'>Welcome! Ask me about AI research, and I'll do my best to assist you.</p>", unsafe_allow_html=True)
 
 is_new__papers_path = "/data/is_new_pdfs.txt"
 faiss_index_file_path = "/app/data/faiss_index.index"
