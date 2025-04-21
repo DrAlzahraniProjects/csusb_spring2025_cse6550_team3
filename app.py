@@ -159,29 +159,29 @@ def is_csusb_ip(ip: str) -> bool:
 # Create page title
 # Verify IP address with a subtle but informative indicator at the top
 user_ip = get_user_ip()
-if not is_csusb_ip(user_ip):
-    # Show denied access message with custom HTML
-    st.markdown(
-        f"""
-        <div class="ip-status-denied">
-            <h3>🚫 Access Denied</h3>
-            <p>Your IP address ({user_ip}) is not from the CSUSB campus network.</p>
-            <p>Only users within the CSUSB campus network can access this application.</p>
-        </div>
-        """, 
-        unsafe_allow_html=True
-    )
-    st.stop()
-else:
-    # Add a subtle text indicator at the very top with more descriptive text
-    st.markdown(
-        f"""
-        <div style="text-align: right; font-size: 11px; color: #779977; padding: 2px; margin-top: -15px;">
-        CSUSB IP verification successful: {user_ip} ✓
-        </div>
-        """, 
-        unsafe_allow_html=True
-    )
+# if not is_csusb_ip(user_ip):
+#     # Show denied access message with custom HTML
+#     st.markdown(
+#         f"""
+#         <div class="ip-status-denied">
+#             <h3>🚫 Access Denied</h3>
+#             <p>Your IP address ({user_ip}) is not from the CSUSB campus network.</p>
+#             <p>Only users within the CSUSB campus network can access this application.</p>
+#         </div>
+#         """, 
+#         unsafe_allow_html=True
+#     )
+#     st.stop()
+# else:
+#     # Add a subtle text indicator at the very top with more descriptive text
+#     st.markdown(
+#         f"""
+#         <div style="text-align: right; font-size: 11px; color: #779977; padding: 2px; margin-top: -15px;">
+#         CSUSB IP verification successful: {user_ip} ✓
+#         </div>
+#         """, 
+#         unsafe_allow_html=True
+#     )
 
 # Create page title and welcome message - keeping original UI intact
 st.markdown("<h2 class='title'>TEAM3 Chatbot - AI Research Helper</h2>", unsafe_allow_html=True)
@@ -242,51 +242,69 @@ index = faiss.read_index(faiss_index_file_path)
 
 # def create_vector_database():
 #     global model, chunks, index
+#     output_file_path = "/data/paper_output.json"
+#     df = pd.read_json(output_file_path)
 
-#     # Path to your JSON file
-#     input_file_path = "/data/papers_output.json"
-
-#     # Download the FAISS index file from Google Drive
-#     json_file_id = '1Rtcdans4EUxuZK16kub0em2L4sONK5BY'
-#     gdown.download(f'https://drive.google.com/uc?id={json_file_id}', input_file_path, quiet=False)
-
-#     # === Load JSON ===
-#     with open(input_file_path, 'r', encoding='utf-8') as f:
-#         data = json.load(f)
-
-#     if not isinstance(data, list):
-#         data = [data]  # Ensure list of entries
-
-#     # === Normalize JSON to flat DataFrame ===
-#     df = pd.json_normalize(data)
-#     df.fillna("", inplace=True)
-
-#     # === Combine all fields into a single text column ===
-#     df["text"] = df.astype(str).agg(" ".join, axis=1)
-
-#     # === Prepare sentences ===
-#     sentences = df["text"].tolist()
-#     json_text = " ".join(sentences)
-
-
-#     # Split text into smaller chunks for better embedding and retrieval
 #     text_splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=50)
-#     chunks = text_splitter.split_text(json_text)
+#     chunks = []
 
-#     # Load a pre-trained sentence embedding model
-#     model = SentenceTransformer('all-MiniLM-L6-v2')
+#     for _, row in df.iterrows():
+#         # 1. Dataset–Model Pairs
+#         datasets = row.get('dataset_names', [])
+#         models = row.get('best_model_names', [])
+#         dataset_links = row.get('dataset_links', [])
+        
+#         for i in range(min(len(datasets), len(models))):
+#             dataset_text = f"Dataset: {datasets[i]}, Best Model: {models[i]}"
+#             if i < len(dataset_links):
+#                 dataset_text += f", Dataset Link: {dataset_links[i]}"
+#             chunks.append(dataset_text)
 
-#     # Open the file in write mode
+#         # 2. Main Metadata
+#         title = row.get('title')
+#         title = title.strip() if isinstance(title, str) else ''
+
+#         main_text = " ".join(filter(None, [
+#             f"Title: {title}",
+#             f"Abstract: {row.get('abstract') or ''}",
+#             f"Description: {row.get('description') or ''}",
+#             f"URL: {row.get('url') or ''}",
+#             f"Date: {row.get('date') or ''}",
+#             f"Authors: {', '.join(row.get('authors', []))}",
+#             f"Artefacts: {', '.join(row.get('artefact-information', []))}"
+#         ]))
+
+#         chunks.extend(text_splitter.split_text(main_text))
+
+#         # 3. Paper List Entries
+#         paper_titles = row.get('paper_list_titles', [])
+#         paper_abstracts = row.get('paper_list_abstracts', [])
+#         paper_authors = row.get('paper_list_authors', [])
+#         paper_dates = row.get('paper_list_dates', [])
+#         paper_links = row.get('paper_list_title_links', [])
+#         author_links = row.get('paper_list_author_links', [])
+
+#         for i in range(len(paper_titles)):
+#             paper_text = " ".join(filter(None, [
+#                 f"Paper Title: {paper_titles[i]}",
+#                 f"Link: {paper_links[i]}" if i < len(paper_links) else "",
+#                 f"Abstract: {paper_abstracts[i]}" if i < len(paper_abstracts) else "",
+#                 f"Authors: {paper_authors[i]}" if i < len(paper_authors) else "",
+#                 f"Author Links: {author_links[i]}" if i < len(author_links) else "",
+#                 f"Date: {paper_dates[i]}" if i < len(paper_dates) else ""
+#             ]))
+#             chunks.extend(text_splitter.split_text(paper_text))
+
+#     # Save to file
 #     with open(chunks_file_path, 'w') as f:
 #         for chunk in chunks:
-#             f.write(chunk + '\n')  # Write each chunk on a new line
+#             f.write(chunk + '\n')
 
-#     # Generate embeddings for the sentences
+#     # Embed and index
+#     model = SentenceTransformer('all-MiniLM-L6-v2')
 #     embeddings = model.encode(chunks).astype('float32')
-
-#     # Create a FAISS index
-#     index = faiss.IndexFlatL2(embeddings.shape[1])  # L2 distance
-#     index.add(embeddings)  # Add embeddings to the index
+#     index = faiss.IndexFlatL2(embeddings.shape[1])
+#     index.add(embeddings)
 #     faiss.write_index(index, faiss_index_file_path)
 
 # #check if vector database already exists
