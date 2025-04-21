@@ -16,10 +16,13 @@ class PaperSpider(scrapy.Spider):
         # Extract data
         title = response.css('h1::text').get()
         abstract = response.css('div.paper-abstract p::text').get()
-        raw = response.css('div.authors span.author-span::text').getall()
-        clean = [s.strip() for s in raw if s.strip()]
-        date = clean[0] if clean else None
-        authors = clean[1:] if len(clean) > 1 else []
+
+        # Extract date and authors
+        raw_date = response.css('div.authors span.author-span::text').get()
+        authors = response.css('div.authors span.author-span a::text').getall()
+
+        date = raw_date.strip() if raw_date else None
+        authors = [a.strip() for a in authors if a.strip()]
 
         artefact_information = response.css('div.artefact-information p::text').getall()
         raw_parts_description = response.css('div.description p ::text').getall()
@@ -36,7 +39,6 @@ class PaperSpider(scrapy.Spider):
         paper_list_author_links = [response.urljoin(link) for link in response.css('div#task-papers-list span.item-github-link a::attr(href)').getall()]
         paper_list_dates = [date.strip() for date in response.css('div#task-papers-list div.col-lg-9.item-content span.item-date-pub::text').getall()]
         paper_list_abstracts = [abstract.strip() for abstract in response.css('div#task-papers-list div.col-lg-9.item-content p.item-strip-abstract::text').getall()]
-
 
         # Yield extracted data
         yield {
@@ -59,8 +61,6 @@ class PaperSpider(scrapy.Spider):
             "paper_list_abstracts": paper_list_abstracts
         }
 
-
         # Follow links from this page to continue crawling
         for href in response.css('a::attr(href)').getall():
             yield response.follow(href, callback=self.parse_paper)
-
