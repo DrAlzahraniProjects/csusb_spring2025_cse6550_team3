@@ -9,6 +9,7 @@ from sentence_transformers import SentenceTransformer
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 import time
 import requests
+import threading
 
 # ------------------- Custom CSS for Light/Dark Mode and Unified Button Styling -------------------
 st.markdown(
@@ -237,75 +238,102 @@ with open(chunks_file_path, 'r') as f:
         # Strip the newline character and add the line to the chunks list
         chunks.append(line.strip())
 
-# Step 2: Read the index using FAISS
 index = faiss.read_index(faiss_index_file_path)
 
-# def create_vector_database():
-#     global model, chunks, index
-#     output_file_path = "/data/paper_output.json"
-#     df = pd.read_json(output_file_path)
 
-#     text_splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=50)
-#     chunks = []
+def create_chunks(output_file_path="/data/paper_output.json"):
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=50)
+    chunks = []
 
-#     for _, row in df.iterrows():
-#         # 1. Dataset–Model Pairs
-#         datasets = row.get('dataset_names', [])
-#         models = row.get('best_model_names', [])
-#         dataset_links = row.get('dataset_links', [])
-        
-#         for i in range(min(len(datasets), len(models))):
-#             dataset_text = f"Dataset: {datasets[i]}, Best Model: {models[i]}"
-#             if i < len(dataset_links):
-#                 dataset_text += f", Dataset Link: {dataset_links[i]}"
-#             chunks.append(dataset_text)
+    df = pd.read_json(output_file_path)
 
-#         # 2. Main Metadata
-#         title = row.get('title')
-#         title = title.strip() if isinstance(title, str) else ''
+    for _, row in df.iterrows():
+        # 1. Dataset–Model Pairs
+        datasets = row.get('dataset_names', [])
+        models = row.get('best_model_names', [])
+        dataset_links = row.get('dataset_links', [])
 
-#         main_text = " ".join(filter(None, [
-#             f"Title: {title}",
-#             f"Abstract: {row.get('abstract') or ''}",
-#             f"Description: {row.get('description') or ''}",
-#             f"URL: {row.get('url') or ''}",
-#             f"Date: {row.get('date') or ''}",
-#             f"Authors: {', '.join(row.get('authors', []))}",
-#             f"Artefacts: {', '.join(row.get('artefact-information', []))}"
-#         ]))
+        for i in range(min(len(datasets), len(models))):
+            dataset_text = f"Dataset: {datasets[i]}, Best Model: {models[i]}"
+            if i < len(dataset_links):
+                dataset_text += f", Dataset Link: {dataset_links[i]}"
+            chunks.append(dataset_text)
 
-#         chunks.extend(text_splitter.split_text(main_text))
+        # 2. Main Metadata
+        title = row.get('title')
+        title = title.strip() if isinstance(title, str) else ''
 
-#         # 3. Paper List Entries
-#         paper_titles = row.get('paper_list_titles', [])
-#         paper_abstracts = row.get('paper_list_abstracts', [])
-#         paper_authors = row.get('paper_list_authors', [])
-#         paper_dates = row.get('paper_list_dates', [])
-#         paper_links = row.get('paper_list_title_links', [])
-#         author_links = row.get('paper_list_author_links', [])
+        main_text = " ".join(filter(None, [
+            f"Title: {title}",
+            f"Abstract: {row.get('abstract') or ''}",
+            f"Description: {row.get('description') or ''}",
+            f"URL: {row.get('url') or ''}",
+            f"Date: {row.get('date') or ''}",
+            f"Authors: {', '.join(row.get('authors', []))}",
+            f"Artefacts: {', '.join(row.get('artefact-information', []))}"
+        ]))
 
-#         for i in range(len(paper_titles)):
-#             paper_text = " ".join(filter(None, [
-#                 f"Paper Title: {paper_titles[i]}",
-#                 f"Link: {paper_links[i]}" if i < len(paper_links) else "",
-#                 f"Abstract: {paper_abstracts[i]}" if i < len(paper_abstracts) else "",
-#                 f"Authors: {paper_authors[i]}" if i < len(paper_authors) else "",
-#                 f"Author Links: {author_links[i]}" if i < len(author_links) else "",
-#                 f"Date: {paper_dates[i]}" if i < len(paper_dates) else ""
-#             ]))
-#             chunks.extend(text_splitter.split_text(paper_text))
+        chunks.extend(text_splitter.split_text(main_text))
 
-#     # Save to file
-#     with open(chunks_file_path, 'w') as f:
-#         for chunk in chunks:
-#             f.write(chunk + '\n')
+        # 3. Paper List Entries
+        paper_titles = row.get('paper_list_titles', [])
+        paper_abstracts = row.get('paper_list_abstracts', [])
+        paper_authors = row.get('paper_list_authors', [])
+        paper_dates = row.get('paper_list_dates', [])
+        paper_links = row.get('paper_list_title_links', [])
+        author_links = row.get('paper_list_author_links', [])
 
-#     # Embed and index
-#     model = SentenceTransformer('all-MiniLM-L6-v2')
-#     embeddings = model.encode(chunks).astype('float32')
-#     index = faiss.IndexFlatL2(embeddings.shape[1])
-#     index.add(embeddings)
-#     faiss.write_index(index, faiss_index_file_path)
+        for i in range(len(paper_titles)):
+            paper_text = " ".join(filter(None, [
+                f"Paper Title: {paper_titles[i]}",
+                f"Link: {paper_links[i]}" if i < len(paper_links) else "",
+                f"Abstract: {paper_abstracts[i]}" if i < len(paper_abstracts) else "",
+                f"Authors: {paper_authors[i]}" if i < len(paper_authors) else "",
+                f"Author Links: {author_links[i]}" if i < len(author_links) else "",
+                f"Date: {paper_dates[i]}" if i < len(paper_dates) else ""
+            ]))
+            chunks.extend(text_splitter.split_text(paper_text))
+
+    # Save chunks to file
+    with open(chunks_file_path, 'w') as f:
+        for chunk in chunks:
+            f.write(chunk + '\n')
+
+
+def create_vector_database():
+    global model, index, chunks
+
+    # Load chunks from file
+    with open(chunks_file_path, 'r') as f:
+        chunks = [line.strip() for line in f.readlines() if line.strip()]
+
+    # Create embeddings and FAISS index
+    model = SentenceTransformer('all-MiniLM-L6-v2')
+    embeddings = model.encode(chunks).astype('float32')
+    index = faiss.IndexFlatL2(embeddings.shape[1])
+    index.add(embeddings)
+
+    faiss_index_file_path = "/data/faiss_index.index"
+
+    # Save index to file
+    faiss.write_index(index, faiss_index_file_path)
+
+
+# Step 2: Create the index using FAISS
+def load_existing_index():
+    global index
+    
+    saved_faiss_index_file_path = "/data/faiss_index.index"
+
+    if os.path.exists(saved_faiss_index_file_path):
+        index = faiss.read_index(saved_faiss_index_file_path)
+        print("Loaded existing FAISS index.")
+    else:
+        print("No index found, building in background...")
+        thread = threading.Thread(target=create_vector_database)
+        thread.start()
+
+load_existing_index()
 
 # #check if vector database already exists
 # # Load the persisted set of processed URLs when the spider starts
