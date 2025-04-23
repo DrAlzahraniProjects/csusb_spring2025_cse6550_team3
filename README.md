@@ -46,7 +46,7 @@ git pull origin main
 Run the setup script to build and start the Docker container:
 
 ```
-chmod +x docker-launch.sh docker-cleanup.sh
+chmod +x docker-setup.sh
 ```
 
 ### Step 6: Run Build Script (enter your Groq API Key when prompted):
