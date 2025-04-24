@@ -186,7 +186,7 @@ user_ip = get_user_ip()
 
 # Create page title and welcome message - keeping original UI intact
 st.markdown("<h2 class='title'>TEAM3 Chatbot - AI Research Helper</h2>", unsafe_allow_html=True)
-st.markdown("<p class='subtitle'>Welcome! Ask me about AI research, and I'll do my best to assist you.</p>", unsafe_allow_html=True)
+st.markdown("<p class='subtitle'>Welcome! Ask me about AI research using information from paperswithcode.com/sota. I'll provide answers based on datasets, models and research papers from this source.</p>", unsafe_allow_html=True)
 
 # 1. Check for API Key
 api_key = os.getenv("GROQ_API_KEY")
@@ -382,7 +382,7 @@ def check_rate_limit():
     # Remove timestamps older than 60 seconds
     st.session_state.question_times = [t for t in st.session_state.question_times if current_time - t < 60]
     if len(st.session_state.question_times) >= 10:
-        return False, "You’ve reached the limit of 10 questions per minute because the server has limited resources. Please try again in 3 minutes."
+        return False, "You've reached the limit of 10 questions per minute because the server has limited resources. Please try again in 3 minutes."
     return True, None
 
 def retrieve_similar_sentences(query_sentence, k=3):
