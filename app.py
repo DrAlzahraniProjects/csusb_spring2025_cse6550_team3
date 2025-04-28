@@ -383,7 +383,7 @@ def check_rate_limit():
         return False, "You've reached the limit of 10 questions per minute because the server has limited resources. Please try again in 3 minutes."
     return True, None
 
-def retrieve_similar_sentences(query_sentence, k=3):
+def retrieve_similar_sentences(query_sentence, k):
     """Retrieve top-k similar sentences from the corpus."""
     query_embedding = model.encode(query_sentence).astype('float32').reshape(1, -1)
     distances, indices = index.search(query_embedding, k)
@@ -461,7 +461,7 @@ if user_input:
         st.session_state.messages.append(HumanMessage(content=user_input))
         with st.spinner("Thinking..."):
             # Retrieve and re-rank for user input
-            similar_sentences, _ = retrieve_similar_sentences(user_input, k=3)
+            similar_sentences, _ = retrieve_similar_sentences(user_input, k=10)
             if not similar_sentences:
                 context = "No context available."
             else:
