@@ -303,15 +303,13 @@ def create_chunks(output_file_path="/data/paper_output.json"):
 def create_vector_database():
     global model, index, chunks
 
-    # Load chunks from file
-    with open(chunks_file_path, 'r') as f:
-        chunks = [line.strip() for line in f.readlines() if line.strip()]
-
     # Create embeddings and FAISS index
     model = SentenceTransformer('all-MiniLM-L6-v2')
     embeddings = model.encode(chunks).astype('float32')
-    index = faiss.IndexFlatL2(embeddings.shape[1])
-    index.add(embeddings)
+    index_temp = faiss.IndexFlatL2(embeddings.shape[1])
+    index_temp.add(embeddings)
+
+    index = index_temp
 
     faiss_index_file_path = "/data/faiss_index.index"
 
