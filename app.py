@@ -466,7 +466,13 @@ if user_input:
                 context = "No context available."
             else:
                 reranked = rerank_sentences(user_input, similar_sentences)
-                context = reranked[0][0] if reranked else "No context available."
+                threshold = 0.3
+
+                # Check if reranked is not empty and if the score is low
+                if reranked and reranked[-1][1] < threshold:
+                    context = "Not enough context available."
+                else:
+                    context = reranked[-1][0] if reranked else "No context available."
             
             messages_to_send = st.session_state.messages + [
                 SystemMessage(content=f"Context: {context}\n\nYou MUST respond with a concise answer limited to one paragraph.")
