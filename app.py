@@ -186,7 +186,10 @@ user_ip = get_user_ip()
 
 # Create page title and welcome message - keeping original UI intact
 st.markdown("<h2 class='title'>TEAM3 Chatbot - AI Research Helper</h2>", unsafe_allow_html=True)
-st.markdown("<p class='subtitle'>Welcome! I'm here to assist you with your research. Ask me research-related questions, and I'll provide answers based on datasets, models and research papers from paperswithcode.com/sota.</p>", unsafe_allow_html=True)
+st.markdown("<p class='subtitle'>Welcome! I'm here to assist you with your research. Ask me research-related questions, and I'll provide answers based on datasets, models and research papers from "
+    "<a href='https://paperswithcode.com/sota' target='_blank'>paperswithcode.com/sota</a>"
+    ".</p>",
+    unsafe_allow_html=True)
 
 # 1. Check for API Key
 api_key = os.getenv("GROQ_API_KEY")
