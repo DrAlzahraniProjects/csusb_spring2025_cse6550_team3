@@ -306,10 +306,8 @@ def create_vector_database():
     # Create embeddings and FAISS index
     model = SentenceTransformer('all-MiniLM-L6-v2')
     embeddings = model.encode(chunks).astype('float32')
-    index_temp = faiss.IndexFlatL2(embeddings.shape[1])
-    index_temp.add(embeddings)
-
-    index = index_temp
+    index = faiss.IndexFlatL2(embeddings.shape[1])
+    index.add(embeddings)
 
     faiss_index_file_path = "/data/faiss_index.index"
 
