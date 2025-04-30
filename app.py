@@ -148,16 +148,14 @@ def get_user_ip() -> str:
         str: The user's IP address, or an empty string if it cannot be determined.
     """
     try:
-        # When Streamlit is running inside a container, the Request object might not be accessible
-        # Using ipify.org as a reliable external service to get the client's public IP
-        response = requests.get('https://api.ipify.org?format=json', timeout=5)
+        response = requests.get('https://api.ipify.org?format=json', timeout=None)
         return response.json().get("ip", "")
     except Exception:
         return ""
 
-def is_us_ip(ip: str) -> bool:
+def is_US_ip(ip: str) -> bool:
     """
-    Check if an IP address is from the United States using the ipinfo.io API.
+    Check if an IP address is from the United States using ip-api.com.
     
     Args:
         ip (str): The IP address to check.
@@ -166,16 +164,9 @@ def is_us_ip(ip: str) -> bool:
         bool: True if the IP is from the US, False otherwise.
     """
     try:
-        # Using ipinfo.io to get geographical information about the IP
-        # The free tier allows up to 50,000 requests per month
-        response = requests.get(f'https://ipinfo.io/{ip}/json', timeout=5)
-        data = response.json()
-        
-        # Check if the country code is "US" for United States
-        return data.get('country') == 'US'
+        response = requests.get(f"http://ip-api.com/json/{ip}?fields=country", timeout=None)
+        return response.json().get("country", "").lower() == "united states"
     except Exception:
-        # If there's an error checking the IP, default to denying access
-        # This is a safer approach in case the IP checking service is down
         return False
 
 # ------------------- Main App Code -------------------
@@ -183,14 +174,13 @@ def is_us_ip(ip: str) -> bool:
 # Create page title
 # Verify IP address with a subtle but informative indicator at the top
 user_ip = get_user_ip()
-if not is_us_ip(user_ip):
+if not is_US_ip(user_ip):
     # Show denied access message with custom HTML
     st.markdown(
         f"""
         <div class="ip-status-denied">
             <h3>🚫 Access Denied</h3>
-            <p>Your IP address ({user_ip}) is not from the United States.</p>
-            <p>Only users within the United States can access this application.</p>
+            <p>Access to this webpage is prohibited.</p>
         </div>
         """, 
         unsafe_allow_html=True
