@@ -141,55 +141,65 @@ st.markdown(
 # ------------------- IP Verification Functions -------------------
 
 def get_user_ip() -> str:
+    """
+    Get the user's IP address by making a request to an external service.
+    
+    Returns:
+        str: The user's IP address, or an empty string if it cannot be determined.
+    """
     try:
-        # When Streamlit is running inside a container, the Request object might not be accessible
-        response = requests.get('https://api.ipify.org?format=json', timeout=5)
+        response = requests.get('https://api.ipify.org?format=json', timeout=None)
         return response.json().get("ip", "")
     except Exception:
         return ""
 
-def is_csusb_ip(ip: str) -> bool:
-    return any([
-        ip.startswith("138.23."),
-        ip.startswith("139.182."),
-        ip.startswith("152.79.") 
-    ])
+def is_US_ip(ip: str) -> bool:
+    """
+    Check if an IP address is from the United States using ip-api.com.
+    
+    Args:
+        ip (str): The IP address to check.
+        
+    Returns:
+        bool: True if the IP is from the US, False otherwise.
+    """
+    try:
+        response = requests.get(f"http://ip-api.com/json/{ip}?fields=country", timeout=None)
+        return response.json().get("country", "").lower() == "united states"
+    except Exception:
+        return False
 
 # ------------------- Main App Code -------------------
 
 # Create page title
 # Verify IP address with a subtle but informative indicator at the top
 user_ip = get_user_ip()
-# if not is_csusb_ip(user_ip):
-#     # Show denied access message with custom HTML
-#     st.markdown(
-#         f"""
-#         <div class="ip-status-denied">
-#             <h3>🚫 Access Denied</h3>
-#             <p>Your IP address ({user_ip}) is not from the CSUSB campus network.</p>
-#             <p>Only users within the CSUSB campus network can access this application.</p>
-#         </div>
-#         """, 
-#         unsafe_allow_html=True
-#     )
-#     st.stop()
-# else:
-#     # Add a subtle text indicator at the very top with more descriptive text
-#     st.markdown(
-#         f"""
-#         <div style="text-align: right; font-size: 11px; color: #779977; padding: 2px; margin-top: -15px;">
-#         CSUSB IP verification successful: {user_ip} ✓
-#         </div>
-#         """, 
-#         unsafe_allow_html=True
-#     )
+if not is_US_ip(user_ip):
+    # Show denied access message with custom HTML
+    st.markdown(
+        f"""
+        <div class="ip-status-denied">
+            <h3>🚫 Access Denied</h3>
+            <p>Access to this webpage is prohibited.</p>
+        </div>
+        """, 
+        unsafe_allow_html=True
+    )
+    st.stop()
+else:
+    # Add a subtle text indicator at the very top with more descriptive text
+    st.markdown(
+        f"""
+        <div style="text-align: right; font-size: 11px; color: #779977; padding: 2px; margin-top: -15px;">
+        US IP verification successful: {user_ip} ✓
+        </div>
+        """, 
+        unsafe_allow_html=True
+    )
 
 # Create page title and welcome message - keeping original UI intact
 st.markdown("<h2 class='title'>TEAM3 Chatbot - AI Research Helper</h2>", unsafe_allow_html=True)
-st.markdown("<p class='subtitle'>Welcome! I'm here to assist you with your research. Ask me research-related questions, and I'll provide answers based on datasets, models and research papers from "
-    "<a href='https://paperswithcode.com/sota' target='_blank'>paperswithcode.com/sota</a>"
-    ".</p>",
-    unsafe_allow_html=True)
+st.markdown("<p class='subtitle'>Welcome! I'm here to assist you with your research. Ask me research-related questions, and I'll provide answers based on datasets, models and research papers from paperswithcode.com/sota.</p>", unsafe_allow_html=True)
 
 # 1. Check for API Key
 api_key = os.getenv("GROQ_API_KEY")
@@ -317,6 +327,11 @@ def create_chunks(output_file_path="/data/paper_output.json"):
 
 
 def create_vector_database():
+    """
+    Create a vector database using FAISS by encoding chunks of text.
+    This function loads text chunks, generates embeddings, and creates a searchable index.
+    The index is then saved to disk for future use.
+    """
     global model, index, chunks
 
     # Create embeddings and FAISS index
@@ -333,6 +348,10 @@ def create_vector_database():
 
 # Step 2: Create the index using FAISS
 def load_existing_index():
+    """
+    Load an existing FAISS index from disk if available.
+    If not available, start a background thread to create a new index.
+    """
     global index
     
     saved_faiss_index_file_path = "/data/faiss_index.index"
@@ -389,7 +408,14 @@ load_existing_index()
 
 
 def check_rate_limit():
-    """Check if the user has exceeded 10 questions in the last 60 seconds."""
+    """
+    Check if the user has exceeded 10 questions in the last 60 seconds.
+    
+    Returns:
+        tuple: (bool, str or None) A tuple containing:
+            - A boolean indicating if the user can ask another question
+            - An error message if the rate limit is exceeded, None otherwise
+    """
     current_time = time.time()
     # Remove timestamps older than 60 seconds
     st.session_state.question_times = [t for t in st.session_state.question_times if current_time - t < 60]
@@ -405,7 +431,16 @@ def retrieve_similar_sentences(query_sentence, k):
     return similar_sentences, distances[0].tolist()
 
 def rerank_sentences(query, sentences):
-    """Use LLM to re-rank retrieved sentences based on relevance to the query with retry on rate limit."""
+    """
+    Use LLM to re-rank retrieved sentences based on relevance to the query with retry on rate limit.
+    
+    Args:
+        query (str): The original user query
+        sentences (list): List of sentences to rank
+        
+    Returns:
+        list: List of tuples (sentence, relevance_score) sorted by relevance
+    """
     rerank_prompt = (
         "You are an AI tasked with ranking sentences based on their relevance to a query. "
         "For each sentence, provide a relevance score between 0 and 1 (where 1 is highly relevant) "
