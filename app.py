@@ -213,7 +213,20 @@ chat = init_chat_model("llama3-8b-8192", model_provider="groq")
 # 3. Initialize Session State Variables
 if "messages" not in st.session_state:
     st.session_state.messages = [
-        SystemMessage(content="You are an AI research helper. Respond with concise answers limited to one paragraph. Keep responses focused and brief while maintaining helpfulness.")
+            SystemMessage(content="""
+    You are an expert research assistant.
+    You are designed to help users with questions related to research papers, methodologies, benchmarks, datasets, models, and advancements, based on information from Papers with Code.
+
+    Rules & Restrictions:
+    - **Stay on Topic:** Only respond to questions related to research, including models, datasets, benchmarks, research papers, and machine learning techniques.
+    - **No Negative Responses:** Maintain a factual, supportive, and encouraging tone at all times.
+    - **Support and Guide:** Provide clear, concise, and precise responses focused on research.
+    - **No Controversial Discussions:** Avoid unrelated topics such as politics, ethics debates, or opinions outside of research.
+    - **Keep Responses Concise:** Limit answers to 2-3 sentences to ensure clarity, focus, and academic professionalism.
+
+    Provide a concise and accurate answer based solely on the context below.
+    If the conte    xt does not contain enough information to answer the question, respond with "I don't have enough information to answer this question." Do not generate, assume, or fabricate any details beyond the given context.
+    """)
     ]
 
 # Commented out confusion matrix
@@ -321,10 +334,6 @@ def create_vector_database():
     """
     global model, index, chunks
 
-    # Load chunks from file
-    with open(chunks_file_path, 'r') as f:
-        chunks = [line.strip() for line in f.readlines() if line.strip()]
-
     # Create embeddings and FAISS index
     model = SentenceTransformer('all-MiniLM-L6-v2')
     embeddings = model.encode(chunks).astype('float32')
@@ -414,19 +423,8 @@ def check_rate_limit():
         return False, "You've reached the limit of 10 questions per minute because the server has limited resources. Please try again in 3 minutes."
     return True, None
 
-def retrieve_similar_sentences(query_sentence, k=3):
-    """
-    Retrieve top-k similar sentences from the corpus.
-    
-    Args:
-        query_sentence (str): The query text to find similar sentences for
-        k (int): Number of similar sentences to retrieve
-        
-    Returns:
-        tuple: A tuple containing:
-            - List of similar sentences
-            - List of distance scores (lower is more similar)
-    """
+def retrieve_similar_sentences(query_sentence, k):
+    """Retrieve top-k similar sentences from the corpus."""
     query_embedding = model.encode(query_sentence).astype('float32').reshape(1, -1)
     distances, indices = index.search(query_embedding, k)
     similar_sentences = [chunks[indices[0][i]] for i in range(min(k, len(indices[0])))]
@@ -512,12 +510,18 @@ if user_input:
         st.session_state.messages.append(HumanMessage(content=user_input))
         with st.spinner("Thinking..."):
             # Retrieve and re-rank for user input
-            similar_sentences, _ = retrieve_similar_sentences(user_input, k=3)
+            similar_sentences, _ = retrieve_similar_sentences(user_input, k=10)
             if not similar_sentences:
                 context = "No context available."
             else:
                 reranked = rerank_sentences(user_input, similar_sentences)
-                context = reranked[0][0] if reranked else "No context available."
+                threshold = 0.3
+
+                # Check if reranked is not empty and if the score is low
+                if reranked and reranked[-1][1] < threshold:
+                    context = "Not enough context available."
+                else:
+                    context = reranked[-1][0] if reranked else "No context available."
             
             messages_to_send = st.session_state.messages + [
                 SystemMessage(content=f"Context: {context}\n\nYou MUST respond with a concise answer limited to one paragraph.")
