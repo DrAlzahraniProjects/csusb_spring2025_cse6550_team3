@@ -296,17 +296,19 @@ def create_chunks(output_file_path="/data/papers_output.json"):
         if PAPER_HASHES.get(uid) == current_hash:
             continue  # Skip unchanged papers
 
-        PAPER_HASHES[uid] = current_hash  # Track updated paper
+        PAPER_HASHES[uid] = current_hash  # Mark this paper as updated
 
-        # Dataset–Model Pairs
         datasets = row.get('dataset_names', [])
         models = row.get('best_model_names', [])
         dataset_links = row.get('dataset_links', [])
+
+        # Dataset–Model Pairs (tagged with SOURCE)
         for i in range(min(len(datasets), len(models))):
             dataset_text = f"Dataset: {datasets[i]}, Best Model: {models[i]}"
             if i < len(dataset_links):
                 dataset_text += f", Dataset Link: {dataset_links[i]}"
-            new_chunks.append(dataset_text)
+            for segment in text_splitter.split_text(dataset_text):
+                new_chunks.append(f"{segment.strip()} ||| SOURCE: {uid}")
 
         # Main Metadata
         title = row.get('title') or ""
@@ -319,7 +321,8 @@ def create_chunks(output_file_path="/data/papers_output.json"):
             f"Authors: {', '.join(row.get('authors', []))}",
             f"Artefacts: {', '.join(row.get('artefact-information', []))}"
         ]))
-        new_chunks.extend(text_splitter.split_text(main_text))
+        for segment in text_splitter.split_text(main_text):
+            new_chunks.append(f"{segment.strip()} ||| SOURCE: {uid}")
 
         # Paper List Entries
         paper_titles = row.get('paper_list_titles', [])
@@ -328,6 +331,7 @@ def create_chunks(output_file_path="/data/papers_output.json"):
         paper_dates = row.get('paper_list_dates', [])
         paper_links = row.get('paper_list_title_links', [])
         author_links = row.get('paper_list_author_links', [])
+
         for i in range(len(paper_titles)):
             paper_text = " ".join(filter(None, [
                 f"Paper Title: {paper_titles[i]}",
@@ -337,7 +341,8 @@ def create_chunks(output_file_path="/data/papers_output.json"):
                 f"Author Links: {author_links[i]}" if i < len(author_links) else "",
                 f"Date: {paper_dates[i]}" if i < len(paper_dates) else ""
             ]))
-            new_chunks.extend(text_splitter.split_text(paper_text))
+            for segment in text_splitter.split_text(paper_text):
+                new_chunks.append(f"{segment.strip()} ||| SOURCE: {uid}")
 
     # Load existing chunks
     existing_chunks = []
@@ -454,24 +459,27 @@ def check_rate_limit():
         return False, "You've reached the limit of 10 questions per minute because the server has limited resources. Please try again in 3 minutes."
     return True, None
 
+def extract_source_url(chunk):
+    # Extract source URL from tagged chunk
+    if "||| SOURCE:" in chunk:
+        return chunk.split("||| SOURCE:")[1].strip()
+    return "Unknown"
+
 def retrieve_similar_sentences(query_sentence, k):
-    """Retrieve top-k similar sentences from the corpus."""
     query_embedding = model.encode(query_sentence).astype('float32').reshape(1, -1)
     distances, indices = index.search(query_embedding, k)
-    similar_sentences = [chunks[indices[0][i]] for i in range(min(k, len(indices[0])))]
-    return similar_sentences, distances[0].tolist()
-
-def rerank_sentences(query, sentences):
-    """
-    Use LLM to re-rank retrieved sentences based on relevance to the query with retry on rate limit.
     
-    Args:
-        query (str): The original user query
-        sentences (list): List of sentences to rank
-        
-    Returns:
-        list: List of tuples (sentence, relevance_score) sorted by relevance
+    raw_chunks = [chunks[i] for i in indices[0]]
+    return raw_chunks, distances[0].tolist()
+
+
+def rerank_sentences(query, raw_chunks):
     """
+    Rerank chunks based on relevance to the query.
+    Returns a list of (cleaned_sentence, score, source_url).
+    """
+    sentences = [chunk.split("||| SOURCE:")[0].strip() for chunk in raw_chunks]
+
     rerank_prompt = (
         "You are an AI tasked with ranking sentences based on their relevance to a query. "
         "For each sentence, provide a relevance score between 0 and 1 (where 1 is highly relevant) "
@@ -539,29 +547,45 @@ if user_input:
     else:
         st.session_state.question_times.append(time.time())
         st.session_state.messages.append(HumanMessage(content=user_input))
+
         with st.spinner("Thinking..."):
             # Retrieve and re-rank for user input
-            similar_sentences, _ = retrieve_similar_sentences(user_input, k=10)
-            if not similar_sentences:
-                context = "No context available."
-            else:
-                reranked = rerank_sentences(user_input, similar_sentences)
-                threshold = 0.3
+            similar_sentences, distances = retrieve_similar_sentences(user_input, k=10)
+            reranked = rerank_sentences(user_input, similar_sentences)
 
-                # Check if reranked is not empty and if the score is low
-                if reranked and reranked[-1][1] < threshold:
-                    context = "Not enough context available."
-                else:
-                    context = reranked[-1][0] if reranked else "No context available."
-            
+            top_k = 3  # or more depending on context length
+            selected_reranked = reranked[:top_k]
+
+            context = " ".join([s for s, _ in selected_reranked]) if selected_reranked else "Not enough context."
+
+            source_urls = []
+            seen = set()
+
+            for chunk in similar_sentences:
+                url = extract_source_url(chunk)
+                if url != "Unknown" and url not in seen:
+                    seen.add(url)
+                    source_urls.append(url)
+
+
+
             messages_to_send = st.session_state.messages + [
                 SystemMessage(content=f"Context: {context}\n\nYou MUST respond with a concise answer limited to one paragraph.")
             ]
             response = chat.invoke(messages_to_send)
-            ai_message = AIMessage(content=response.content)
-            st.session_state.messages.append(ai_message)
-            # Commented out to remove rating buttons
-            # st.session_state.last_ai_response = ai_message.content  # Save latest AI response for rating
+            ai_message_content = response.content
+
+            # --- Add citation if source is valid ---
+            valid_sources = [url for url in source_urls if url != "Unknown"]
+            if source_urls and "I don't have enough information" not in ai_message_content:
+                references = "\n\nReferences:\n" + "\n".join(f"[{i+1}]({url})" for i, url in enumerate(source_urls))
+                ai_message_content += references
+
+
+            # Add to session
+            st.session_state.messages.append(AIMessage(content=ai_message_content))
+
+
         st.rerun()
 
 # 11. Rating Buttons section - commented out
