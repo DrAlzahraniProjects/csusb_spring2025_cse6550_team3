@@ -133,6 +133,15 @@ st.markdown(
         border: 1px solid #f5c6cb;
         text-align: center;
     }
+    /* Response time display styling */
+    .response-time {
+        font-size: 12px;
+        color: var(--subtitle-color);
+        text-align: right;
+        margin-top: 2px;
+        margin-bottom: 10px;
+        font-style: italic;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -186,16 +195,7 @@ if not is_US_ip(user_ip):
         unsafe_allow_html=True
     )
     st.stop()
-else:
-    # Add a subtle text indicator at the very top with more descriptive text
-    st.markdown(
-        f"""
-        <div style="text-align: right; font-size: 11px; color: #779977; padding: 2px; margin-top: -15px;">
-        US IP verification successful: {user_ip} ✓
-        </div>
-        """, 
-        unsafe_allow_html=True
-    )
+# Removed the IP verification success message as requested
 
 # Create page title and welcome message - keeping original UI intact
 st.markdown("<h2 class='title'>TEAM3 Chatbot - AI Research Helper</h2>", unsafe_allow_html=True)
@@ -225,7 +225,7 @@ if "messages" not in st.session_state:
     - **Keep Responses Concise:** Limit answers to 2-3 sentences to ensure clarity, focus, and academic professionalism.
 
     Provide a concise and accurate answer based solely on the context below.
-    If the conte    xt does not contain enough information to answer the question, respond with "I don't have enough information to answer this question." Do not generate, assume, or fabricate any details beyond the given context.
+    If the context does not contain enough information to answer the question, respond with "I don't have enough information to answer this question." Do not generate, assume, or fabricate any details beyond the given context.
     """)
     ]
 
@@ -242,6 +242,10 @@ if "conversation_history" not in st.session_state:
 
 if "question_times" not in st.session_state:
     st.session_state.question_times = []
+
+# Add response time tracking to session state
+if "response_times" not in st.session_state:
+    st.session_state.response_times = {}
 
 # 4. Layout the Main Chat Container
 st.markdown('<div class="chat-container">', unsafe_allow_html=True)
@@ -488,9 +492,15 @@ def rerank_sentences(query, sentences):
 for message in st.session_state.messages:
     if isinstance(message, SystemMessage):
         continue  # Skip displaying system messages
+    
     role = "user" if isinstance(message, HumanMessage) else "assistant"
     with st.chat_message(role):
         st.write(message.content)
+        
+        # Display response time for assistant messages
+        if role == "assistant" and message.content in st.session_state.response_times:
+            response_time = st.session_state.response_times[message.content]
+            st.markdown(f"<div class='response-time'>Response time: {response_time:.2f} seconds</div>", unsafe_allow_html=True)
 
 # 8. Display AI-to-AI Conversation History
 for role, content in st.session_state.conversation_history:
@@ -509,6 +519,9 @@ if user_input:
         st.session_state.question_times.append(time.time())
         st.session_state.messages.append(HumanMessage(content=user_input))
         with st.spinner("Thinking..."):
+            # Start timer for response generation
+            start_time = time.time()
+            
             # Retrieve and re-rank for user input
             similar_sentences, _ = retrieve_similar_sentences(user_input, k=10)
             if not similar_sentences:
@@ -528,6 +541,14 @@ if user_input:
             ]
             response = chat.invoke(messages_to_send)
             ai_message = AIMessage(content=response.content)
+            
+            # End timer and calculate response time
+            end_time = time.time()
+            response_time = end_time - start_time
+            
+            # Store the response time for this message
+            st.session_state.response_times[response.content] = response_time
+            
             st.session_state.messages.append(ai_message)
             # Commented out to remove rating buttons
             # st.session_state.last_ai_response = ai_message.content  # Save latest AI response for rating
