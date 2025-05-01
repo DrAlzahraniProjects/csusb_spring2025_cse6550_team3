@@ -39,6 +39,8 @@ COPY --from=builder /usr/local/lib/python3.10/site-packages /usr/local/lib/pytho
 COPY --from=builder /usr/local/bin/streamlit /usr/local/bin/streamlit
 COPY --from=builder /usr/local/bin/scrapy /usr/local/bin/scrapy
 COPY app.py /app/
+COPY go-paper-spider.py /app/
+COPY mycrawler /app/mycrawler
 EXPOSE 2503
 
 # Set up Apache proxy configurations
