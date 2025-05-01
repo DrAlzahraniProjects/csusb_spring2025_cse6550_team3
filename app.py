@@ -1,3 +1,6 @@
+import hashlib
+import json
+import subprocess
 import streamlit as st
 import numpy as np
 import pandas as pd
@@ -246,13 +249,25 @@ if "question_times" not in st.session_state:
 # 4. Layout the Main Chat Container
 st.markdown('<div class="chat-container">', unsafe_allow_html=True)
 
-is_new__papers_path = "/data/is_new_pdfs.txt"
+PAPER_HASHES_PATH = "/data/paper_hashes.json"
+PAPER_HASHES = {}
+
+if os.path.exists(PAPER_HASHES_PATH):
+    with open(PAPER_HASHES_PATH, "r") as f:
+        try:
+            PAPER_HASHES = json.load(f)
+        except json.JSONDecodeError:
+            PAPER_HASHES = {}
+
+def compute_md5(text: str) -> str:
+    return hashlib.md5(text.encode("utf-8")).hexdigest()
+
 faiss_index_file_path = "/app/data/faiss_index.index"
 chunks_file_path = "/app/data/chunks.txt"
-is_new_vector_database = True
 model = None
 index = None
 chunks = []
+new_chunks = []
 
 model = SentenceTransformer('all-MiniLM-L6-v2')
 
@@ -267,48 +282,52 @@ with open(chunks_file_path, 'r') as f:
 index = faiss.read_index(faiss_index_file_path)
 
 
-def create_chunks(output_file_path="/data/paper_output.json"):
+def create_chunks(output_file_path="/data/papers_output.json"):
+    global chunks
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=50)
-    chunks = []
 
     df = pd.read_json(output_file_path)
 
     for _, row in df.iterrows():
-        # 1. Dataset–Model Pairs
+        uid = row.get('url')
+        full_text = json.dumps(row.to_dict(), sort_keys=True, default=str)
+        current_hash = compute_md5(full_text)
+
+        if PAPER_HASHES.get(uid) == current_hash:
+            continue  # Skip unchanged papers
+
+        PAPER_HASHES[uid] = current_hash  # Track updated paper
+
+        # Dataset–Model Pairs
         datasets = row.get('dataset_names', [])
         models = row.get('best_model_names', [])
         dataset_links = row.get('dataset_links', [])
-
         for i in range(min(len(datasets), len(models))):
             dataset_text = f"Dataset: {datasets[i]}, Best Model: {models[i]}"
             if i < len(dataset_links):
                 dataset_text += f", Dataset Link: {dataset_links[i]}"
-            chunks.append(dataset_text)
+            new_chunks.append(dataset_text)
 
-        # 2. Main Metadata
-        title = row.get('title')
-        title = title.strip() if isinstance(title, str) else ''
-
+        # Main Metadata
+        title = row.get('title') or ""
         main_text = " ".join(filter(None, [
-            f"Title: {title}",
-            f"Abstract: {row.get('abstract') or ''}",
-            f"Description: {row.get('description') or ''}",
-            f"URL: {row.get('url') or ''}",
-            f"Date: {row.get('date') or ''}",
+            f"Title: {title.strip()}",
+            f"Abstract: {row.get('abstract', '')}",
+            f"Description: {row.get('description', '')}",
+            f"URL: {row.get('url', '')}",
+            f"Date: {row.get('date', '')}",
             f"Authors: {', '.join(row.get('authors', []))}",
             f"Artefacts: {', '.join(row.get('artefact-information', []))}"
         ]))
+        new_chunks.extend(text_splitter.split_text(main_text))
 
-        chunks.extend(text_splitter.split_text(main_text))
-
-        # 3. Paper List Entries
+        # Paper List Entries
         paper_titles = row.get('paper_list_titles', [])
         paper_abstracts = row.get('paper_list_abstracts', [])
         paper_authors = row.get('paper_list_authors', [])
         paper_dates = row.get('paper_list_dates', [])
         paper_links = row.get('paper_list_title_links', [])
         author_links = row.get('paper_list_author_links', [])
-
         for i in range(len(paper_titles)):
             paper_text = " ".join(filter(None, [
                 f"Paper Title: {paper_titles[i]}",
@@ -318,13 +337,29 @@ def create_chunks(output_file_path="/data/paper_output.json"):
                 f"Author Links: {author_links[i]}" if i < len(author_links) else "",
                 f"Date: {paper_dates[i]}" if i < len(paper_dates) else ""
             ]))
-            chunks.extend(text_splitter.split_text(paper_text))
+            new_chunks.extend(text_splitter.split_text(paper_text))
 
-    # Save chunks to file
-    with open(chunks_file_path, 'w') as f:
-        for chunk in chunks:
-            f.write(chunk + '\n')
+    # Load existing chunks
+    existing_chunks = []
+    if os.path.exists("/data/chunks.txt"):
+        with open("/data/chunks.txt", 'r') as f:
+            existing_chunks = [line.strip() for line in f if line.strip()]
 
+    if new_chunks != []:
+        all_chunks = existing_chunks + new_chunks
+
+        with open("/data/chunks.txt", 'w') as f:
+            for chunk in all_chunks:
+                f.write(chunk + '\n')
+
+        chunks = all_chunks  # update global chunks
+    else:
+        print("No new chunks to add.")
+
+    if new_chunks != []:
+        # Update paper hashes
+        with open(PAPER_HASHES_PATH, "w") as f:
+            json.dump(PAPER_HASHES, f, indent=2)
 
 def create_vector_database():
     """
@@ -333,6 +368,10 @@ def create_vector_database():
     The index is then saved to disk for future use.
     """
     global model, index, chunks
+
+    if new_chunks == []:
+        print("No new content. FAISS index unchanged.")
+        return
 
     # Create embeddings and FAISS index
     model = SentenceTransformer('all-MiniLM-L6-v2')
@@ -359,53 +398,34 @@ def load_existing_index():
     if os.path.exists(saved_faiss_index_file_path):
         index = faiss.read_index(saved_faiss_index_file_path)
         print("Loaded existing FAISS index.")
-    else:
-        print("No index found, building in background...")
-        thread = threading.Thread(target=create_vector_database)
-        thread.start()
 
 load_existing_index()
 
-# #check if vector database already exists
-# # Load the persisted set of processed URLs when the spider starts
-# if os.path.exists(is_new__papers_path):
-#     try:
-#         # Open the text file
-#         with open(is_new__papers_path, mode='r') as txtfile:
-#             first_line = txtfile.readline().strip()  # Read the first line and strip whitespace
-#             if first_line:  # Check if the line is not empty
-#                 first_char = first_line[0]
+def run_scraper():
+    """Run the Scrapy spider via subprocess."""
+    result = subprocess.run(["python3", "go-paper-spider.py"], capture_output=True)
 
-#                 if first_char == '0':
-#                     #Load the vector database
-#                     is_new_vector_database = False
-#                 elif first_char == '1':
-#                     #Make a new vector database
-#                     is_new_vector_database = True
-#     except Exception as e:
-#         print(f"Error saving processed files: {e}")
 
-    
-# if is_new_vector_database:
-#     create_vector_database()
-# else:
-#     if os.path.exists(faiss_index_file_path):
-#         # Load a pre-trained sentence embedding model
-#         model = SentenceTransformer('all-MiniLM-L6-v2')
+def full_refresh_pipeline():
+    run_scraper()
+    create_chunks()
+    create_vector_database()
 
-#         #Load chunks
-#         # Open the file in read mode
-#         with open(chunks_file_path, 'r') as f:
-#             # Read each line from the file
-#             for line in f:
-#                 # Strip the newline character and add the line to the chunks list
-#                 chunks.append(line.strip())
+def schedule_next_run(interval_hours: int = 24):
+    """Run `full_refresh_pipeline` every `interval_hours` after an initial delay."""
+    def run_and_reschedule():
+        full_refresh_pipeline()
+        schedule_next_run(interval_hours)  # Reschedule after each run
 
-#         #Load a saved FAISS index
-#         index = faiss.read_index(faiss_index_file_path)
-#     else:
-#         create_vector_database()
+    delay = interval_hours * 3600
+    timer = threading.Timer(delay, run_and_reschedule)
+    timer.daemon = True  # Allows the program (e.g., Streamlit) to exit cleanly
+    timer.start()
 
+# Start the first scheduled run in a background thread
+thread_scrape_increment = threading.Thread(target=schedule_next_run)
+thread_scrape_increment.daemon = True
+thread_scrape_increment.start()
 
 def check_rate_limit():
     """

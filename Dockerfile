@@ -51,4 +51,4 @@ RUN echo "ProxyPass /team3s25 http://localhost:2503/team3s25" >> /etc/apache2/si
 # Enable necessary Apache modules
 RUN a2enmod proxy proxy_http rewrite
 
-CMD ["sh", "-c", "apache2ctl start & python3 -u go-paper-spider.py & streamlit run app.py --server.port=2503 --server.baseUrlPath=/team3s25"]
+CMD ["sh", "-c", "apache2ctl start & streamlit run app.py --server.port=2503 --server.baseUrlPath=/team3s25"]
