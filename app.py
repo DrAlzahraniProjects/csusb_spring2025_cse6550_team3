@@ -385,21 +385,32 @@ def create_vector_database():
     faiss.write_index(index, faiss_index_file_path)
 
 
-# Step 2: Create the index using FAISS
-def load_existing_index():
+# Step 2: Load saved data from Docker Volume
+def load_existing_data():
     """
     Load an existing FAISS index from disk if available.
     If not available, start a background thread to create a new index.
     """
-    global index
+    global index, chunks
     
     saved_faiss_index_file_path = "/data/faiss_index.index"
+    saved_chunks_file_path = "/data/chunks.txt"
 
     if os.path.exists(saved_faiss_index_file_path):
         index = faiss.read_index(saved_faiss_index_file_path)
         print("Loaded existing FAISS index.")
 
-load_existing_index()
+    #Load chunks
+    if os.path.exists(saved_chunks_file_path):
+        chunks = []
+        # Open the file in read mode
+        with open(saved_chunks_file_path, 'r') as f:
+            # Read each line from the file
+            for line in f:
+                # Strip the newline character and add the line to the chunks list
+                chunks.append(line.strip())
+
+load_existing_data()
 
 def run_scraper():
     """Run the Scrapy spider via subprocess."""
