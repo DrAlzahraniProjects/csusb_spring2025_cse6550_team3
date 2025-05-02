@@ -262,8 +262,8 @@ if os.path.exists(PAPER_HASHES_PATH):
 def compute_md5(text: str) -> str:
     return hashlib.md5(text.encode("utf-8")).hexdigest()
 
-faiss_index_file_path = "/app/data/faiss_index.index"
-chunks_file_path = "/app/data/chunks.txt"
+faiss_index_file_path = "/app/data/faiss_pq.index"
+chunks_file_path = "/app/data/chunks_reduced.txt"
 model = None
 index = None
 chunks = []
@@ -273,7 +273,7 @@ model = SentenceTransformer('all-MiniLM-L6-v2')
 
 #Load chunks
 # Open the file in read mode
-with open(chunks_file_path, 'r') as f:
+with open(chunks_file_path, 'r', encoding='latin-1') as f:
     # Read each line from the file
     for line in f:
         # Strip the newline character and add the line to the chunks list
@@ -342,7 +342,7 @@ def create_chunks(output_file_path="/data/papers_output.json"):
     # Load existing chunks
     existing_chunks = []
     if os.path.exists("/data/chunks.txt"):
-        with open("/data/chunks.txt", 'r') as f:
+        with open("/data/chunks.txt", 'r', encoding='latin-1') as f:
             existing_chunks = [line.strip() for line in f if line.strip()]
 
     if new_chunks != []:
@@ -404,7 +404,7 @@ def load_existing_data():
     if os.path.exists(saved_chunks_file_path):
         chunks = []
         # Open the file in read mode
-        with open(saved_chunks_file_path, 'r') as f:
+        with open(saved_chunks_file_path, 'r', encoding='latin-1') as f:
             # Read each line from the file
             for line in f:
                 # Strip the newline character and add the line to the chunks list
@@ -423,11 +423,15 @@ def full_refresh_pipeline():
     create_vector_database()
 
 def schedule_next_run(interval_hours: int = 24):
-    """Run `full_refresh_pipeline` every `interval_hours` after an initial delay."""
+    """Run `full_refresh_pipeline` every `interval_hours`"""
     def run_and_reschedule():
         full_refresh_pipeline()
         schedule_next_run(interval_hours)  # Reschedule after each run
 
+    #Run the pipeline immediately
+    full_refresh_pipeline()
+
+    #Schedule the next run after the specified interval
     delay = interval_hours * 3600
     timer = threading.Timer(delay, run_and_reschedule)
     timer.daemon = True  # Allows the program (e.g., Streamlit) to exit cleanly
@@ -549,10 +553,10 @@ if user_input:
                 threshold = 0.3
 
                 # Check if reranked is not empty and if the score is low
-                if reranked and reranked[-1][1] < threshold:
+                if reranked and reranked[0][1] < threshold:
                     context = "Not enough context available."
                 else:
-                    context = reranked[-1][0] if reranked else "No context available."
+                    context = reranked[0][0] if reranked else "No context available."
             
             messages_to_send = st.session_state.messages + [
                 SystemMessage(content=f"Context: {context}\n\nYou MUST respond with a concise answer limited to one paragraph.")
