@@ -361,6 +361,23 @@ def create_chunks(output_file_path="/data/papers_output.json"):
         with open(PAPER_HASHES_PATH, "w") as f:
             json.dump(PAPER_HASHES, f, indent=2)
 
+def create_compressed_vector_database():
+    # Compute embeddings
+    embeddings = model.encode(chunks, show_progress_bar=True).astype('float32')
+    d = embeddings.shape[1]  # embedding dimension
+
+    # Set compression params
+    m = 32         # number of sub-vectors (typical: 8, 16, 32)
+    nbits = 8      # bits per sub-vector (8 = 256 centroids)
+
+    # Build PQ index
+    pq_index = faiss.IndexPQ(d, m, nbits)
+    pq_index.train(embeddings)
+    pq_index.add(embeddings)
+
+    # Save compressed index
+    faiss.write_index(pq_index, '/content/faiss_pq.index')
+
 def create_vector_database():
     """
     Create a vector database using FAISS by encoding chunks of text.
