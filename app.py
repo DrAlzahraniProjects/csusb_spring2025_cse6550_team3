@@ -262,28 +262,66 @@ if os.path.exists(PAPER_HASHES_PATH):
 def compute_md5(text: str) -> str:
     return hashlib.md5(text.encode("utf-8")).hexdigest()
 
+
+@st.cache_resource(show_spinner=False)
+def load_model():
+    return SentenceTransformer('all-MiniLM-L6-v2')
+
+def load_chunks(chunks_file_path):
+    with open(chunks_file_path, 'r', encoding='latin-1') as f:
+        return [line.strip() for line in f]
+
+def load_faiss_index(index_file_path, updated_at=None):
+    return faiss.read_index(index_file_path)
+
+# Load saved data from Docker Volume
+@st.cache_resource(show_spinner=False)
+def load_saved_faiss_index(path, updated_at=None):
+    if os.path.exists(path):
+        return faiss.read_index(path)
+    return None
+
+# Load saved data from Docker Volume
+@st.cache_data(show_spinner=False)
+def load_saved_chunks(path, reload_token=None):
+    if os.path.exists(path):
+        with open(path, 'r', encoding='latin-1') as f:
+            return [line.strip() for line in f]
+    else:
+        return []
+
 faiss_index_file_path = "/app/data/faiss_pq.index"
 chunks_file_path = "/app/data/chunks_reduced.txt"
 model = None
 index = None
 chunks = []
 new_chunks = []
+# Docker Volume Paths
+saved_faiss_index_file_path = "/data/faiss_index.index"
+saved_chunks_file_path = "/data/chunks.txt"
 
-model = SentenceTransformer('all-MiniLM-L6-v2')
+# Load resources only once
+# Use custom messages while loading
+if "model" not in st.session_state:
+    with st.spinner("Loading ..."):
+        st.session_state.model = load_model()
 
-#Load chunks
-# Open the file in read mode
-with open(chunks_file_path, 'r', encoding='latin-1') as f:
-    # Read each line from the file
-    for line in f:
-        # Strip the newline character and add the line to the chunks list
-        chunks.append(line.strip())
+if "index" not in st.session_state:
+    with st.spinner("Loading ..."):
+        st.session_state.index = load_faiss_index(faiss_index_file_path)
 
-index = faiss.read_index(faiss_index_file_path)
+if "chunks" not in st.session_state:
+    with st.spinner("Loading ..."):
+        st.session_state.chunks = load_chunks(chunks_file_path)
+
+# Then assign them to variables
+model = st.session_state.model
+index = st.session_state.index
+chunks = st.session_state.chunks
 
 
 def create_chunks(output_file_path="/data/papers_output.json"):
-    global chunks
+    create_chunks = []
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=50)
 
     df = pd.read_json(output_file_path)
@@ -347,12 +385,11 @@ def create_chunks(output_file_path="/data/papers_output.json"):
 
     if new_chunks != []:
         all_chunks = existing_chunks + new_chunks
+        create_chunks = all_chunks
 
         with open("/data/chunks.txt", 'w') as f:
             for chunk in all_chunks:
                 f.write(chunk + '\n')
-
-        chunks = all_chunks  # update global chunks
     else:
         print("No new chunks to add.")
 
@@ -360,6 +397,7 @@ def create_chunks(output_file_path="/data/papers_output.json"):
         # Update paper hashes
         with open(PAPER_HASHES_PATH, "w") as f:
             json.dump(PAPER_HASHES, f, indent=2)
+    return create_chunks
 
 def create_compressed_vector_database():
     # Compute embeddings
@@ -378,56 +416,44 @@ def create_compressed_vector_database():
     # Save compressed index
     faiss.write_index(pq_index, '/content/faiss_pq.index')
 
-def create_vector_database():
-    """
-    Create a vector database using FAISS by encoding chunks of text.
-    This function loads text chunks, generates embeddings, and creates a searchable index.
-    The index is then saved to disk for future use.
-    """
-    global model, index, chunks
 
+def create_vector_database(temp_chunks):
+    """
+    Rebuild the FAISS index from new chunks and save it to disk.
+    Then refresh both the cached and session_state versions of the index and chunks.
+    """
+    global new_chunks
     if new_chunks == []:
-        print("No new content. FAISS index unchanged.")
         return
 
-    # Create embeddings and FAISS index
-    model = SentenceTransformer('all-MiniLM-L6-v2')
-    embeddings = model.encode(chunks).astype('float32')
+    # Reuse the cached model
+    model = load_model()
+
+    # Encode new chunks
+    embeddings = model.encode(temp_chunks).astype('float32')
+
+
+    # Create FAISS index
     index = faiss.IndexFlatL2(embeddings.shape[1])
     index.add(embeddings)
 
+    # Save new index to disk
     faiss_index_file_path = "/data/faiss_index.index"
-
-    # Save index to file
     faiss.write_index(index, faiss_index_file_path)
 
-
-# Step 2: Load saved data from Docker Volume
-def load_existing_data():
-    """
-    Load an existing FAISS index from disk if available.
-    If not available, start a background thread to create a new index.
-    """
-    global index, chunks
-    
-    saved_faiss_index_file_path = "/data/faiss_index.index"
+    # Save new chunks to disk
     saved_chunks_file_path = "/data/chunks.txt"
 
-    if os.path.exists(saved_faiss_index_file_path):
-        index = faiss.read_index(saved_faiss_index_file_path)
-        print("Loaded existing FAISS index.")
+    # Invalidate the session state (forces cache to reload)
+    st.session_state.pop("index", None)
+    st.session_state.pop("chunks", None)
 
-    #Load chunks
-    if os.path.exists(saved_chunks_file_path):
-        chunks = []
-        # Open the file in read mode
-        with open(saved_chunks_file_path, 'r', encoding='latin-1') as f:
-            # Read each line from the file
-            for line in f:
-                # Strip the newline character and add the line to the chunks list
-                chunks.append(line.strip())
+    # Refresh the index from disk (forcing cache update)
+    with st.spinner("Reloading FAISS index..."):
+        st.session_state.index = load_saved_faiss_index(faiss_index_file_path, updated_at=time.time())
 
-load_existing_data()
+    with st.spinner("Reloading chunks..."):
+        st.session_state.chunks = load_saved_chunks(saved_chunks_file_path, reload_token=str(time.time()))
 
 def run_scraper():
     """Run the Scrapy spider via subprocess."""
@@ -436,17 +462,14 @@ def run_scraper():
 
 def full_refresh_pipeline():
     run_scraper()
-    create_chunks()
-    create_vector_database()
+    temp_chunks = create_chunks()
+    create_vector_database(temp_chunks)
 
 def schedule_next_run(interval_hours: int = 24):
     """Run `full_refresh_pipeline` every `interval_hours`"""
     def run_and_reschedule():
         full_refresh_pipeline()
         schedule_next_run(interval_hours)  # Reschedule after each run
-
-    #Run the pipeline immediately
-    full_refresh_pipeline()
 
     #Schedule the next run after the specified interval
     delay = interval_hours * 3600
@@ -455,9 +478,12 @@ def schedule_next_run(interval_hours: int = 24):
     timer.start()
 
 # Start the first scheduled run in a background thread
-thread_scrape_increment = threading.Thread(target=schedule_next_run)
-thread_scrape_increment.daemon = True
-thread_scrape_increment.start()
+# Run once at startup
+if "scheduler_started" not in st.session_state:
+    st.session_state.scheduler_started = True
+    thread_scrape_increment = threading.Thread(target=schedule_next_run)
+    thread_scrape_increment.daemon = True
+    thread_scrape_increment.start()
 
 def check_rate_limit():
     """
