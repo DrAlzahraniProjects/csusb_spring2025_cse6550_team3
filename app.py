@@ -297,30 +297,22 @@ index = None
 chunks = []
 new_chunks = []
 # Docker Volume Paths
-saved_faiss_index_file_path = "/data/faiss_index.index"
-saved_chunks_file_path = "/data/chunks.txt"
-
-# Load resources only once
-# Use custom messages while loading
-if "model" not in st.session_state:
-    with st.spinner("Loading ..."):
-        st.session_state.model = load_model()
-
-if "index" not in st.session_state:
-    with st.spinner("Loading ..."):
-        st.session_state.index = load_faiss_index(faiss_index_file_path)
-
-if "chunks" not in st.session_state:
-    with st.spinner("Loading ..."):
-        st.session_state.chunks = load_chunks(chunks_file_path)
+saved_faiss_index_file_path = "/data/faiss_index_newest.index"
+saved_chunks_file_path = "/data/chunks_newest.txt"
 
 # Then assign them to variables
-model = st.session_state.model
-index = st.session_state.index
-chunks = st.session_state.chunks
+model = load_model()
+
+if os.path.exists(saved_faiss_index_file_path) and os.path.exists(saved_chunks_file_path):
+    index = load_saved_faiss_index(saved_faiss_index_file_path)
+    chunks = load_saved_chunks(saved_chunks_file_path)
+else:
+    index = load_faiss_index(faiss_index_file_path)
+    chunks = load_chunks(chunks_file_path)
 
 
 def create_chunks(output_file_path="/data/papers_output.json"):
+    global new_chunks
     create_chunks = []
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=50)
 
@@ -387,7 +379,7 @@ def create_chunks(output_file_path="/data/papers_output.json"):
         all_chunks = existing_chunks + new_chunks
         create_chunks = all_chunks
 
-        with open("/data/chunks.txt", 'w') as f:
+        with open(saved_chunks_file_path, 'w') as f:
             for chunk in all_chunks:
                 f.write(chunk + '\n')
     else:
@@ -399,9 +391,14 @@ def create_chunks(output_file_path="/data/papers_output.json"):
             json.dump(PAPER_HASHES, f, indent=2)
     return create_chunks
 
-def create_compressed_vector_database():
+def create_compressed_vector_database(temp_chunks):
+    global new_chunks, saved_faiss_index_file_path, saved_chunks_file_path, index, chunks
+
+    if new_chunks == []:
+        return
+
     # Compute embeddings
-    embeddings = model.encode(chunks, show_progress_bar=True).astype('float32')
+    embeddings = model.encode(temp_chunks).astype('float32')
     d = embeddings.shape[1]  # embedding dimension
 
     # Set compression params
@@ -414,7 +411,7 @@ def create_compressed_vector_database():
     pq_index.add(embeddings)
 
     # Save compressed index
-    faiss.write_index(pq_index, '/content/faiss_pq.index')
+    faiss.write_index(pq_index, saved_faiss_index_file_path)
 
 
 def create_vector_database(temp_chunks):
@@ -422,7 +419,8 @@ def create_vector_database(temp_chunks):
     Rebuild the FAISS index from new chunks and save it to disk.
     Then refresh both the cached and session_state versions of the index and chunks.
     """
-    global new_chunks
+    global new_chunks, saved_faiss_index_file_path, saved_chunks_file_path, index, chunks
+    
     if new_chunks == []:
         return
 
@@ -432,28 +430,17 @@ def create_vector_database(temp_chunks):
     # Encode new chunks
     embeddings = model.encode(temp_chunks).astype('float32')
 
-
     # Create FAISS index
-    index = faiss.IndexFlatL2(embeddings.shape[1])
-    index.add(embeddings)
+    temp_index = faiss.IndexFlatL2(embeddings.shape[1])
+    temp_index.add(embeddings)
 
     # Save new index to disk
-    faiss_index_file_path = "/data/faiss_index.index"
-    faiss.write_index(index, faiss_index_file_path)
+    faiss.write_index(temp_index, saved_faiss_index_file_path)
 
-    # Save new chunks to disk
-    saved_chunks_file_path = "/data/chunks.txt"
-
-    # Invalidate the session state (forces cache to reload)
-    st.session_state.pop("index", None)
-    st.session_state.pop("chunks", None)
 
     # Refresh the index from disk (forcing cache update)
-    with st.spinner("Reloading FAISS index..."):
-        st.session_state.index = load_saved_faiss_index(faiss_index_file_path, updated_at=time.time())
-
-    with st.spinner("Reloading chunks..."):
-        st.session_state.chunks = load_saved_chunks(saved_chunks_file_path, reload_token=str(time.time()))
+    load_saved_faiss_index(saved_faiss_index_file_path, updated_at=time.time())
+    load_saved_chunks(saved_chunks_file_path, reload_token=str(time.time()))
 
 def run_scraper():
     """Run the Scrapy spider via subprocess."""
@@ -463,7 +450,7 @@ def run_scraper():
 def full_refresh_pipeline():
     run_scraper()
     temp_chunks = create_chunks()
-    create_vector_database(temp_chunks)
+    create_compressed_vector_database(temp_chunks)
 
 def schedule_next_run(interval_hours: int = 24):
     """Run `full_refresh_pipeline` every `interval_hours`"""
