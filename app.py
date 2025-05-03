@@ -16,16 +16,10 @@ import subprocess
 def start_apache():
     subprocess.run(["apache2ctl", "start"])
 
-# Start Scrapy spider in background
-def run_scraper():
-    subprocess.run(["python3", "-u", "go-paper-spider.py"])
-
 # Start these services in threads
 threading.Thread(target=start_apache).start()
-threading.Thread(target=run_scraper).start()
 
 # Then run Streamlit app
-import os
 os.system("streamlit run app.py --server.port=2503 --server.baseUrlPath=/team3s25")
 
 
