@@ -271,6 +271,12 @@ if os.path.exists(PAPER_HASHES_PATH):
 def compute_md5(text: str) -> str:
     return hashlib.md5(text.encode("utf-8")).hexdigest()
 
+def sanitize(text):
+    """Preserve data integrity during line-based storage"""
+    return text.replace('\n', ' [NL] ').replace('\r', ' [CR] ')
+
+def desanitize(text):
+    return text.replace(' [NL] ', '\n').replace(' [CR] ', '\r')
 
 @st.cache_resource(show_spinner=False)
 def load_model():
@@ -278,7 +284,7 @@ def load_model():
 
 def load_chunks(chunks_file_path):
     with open(chunks_file_path, 'r', encoding='latin-1') as f:
-        return [line.strip() for line in f]
+        return [desanitize(line.strip()) for line in f]
 
 def load_faiss_index(index_file_path, updated_at=None):
     return faiss.read_index(index_file_path)
@@ -295,19 +301,22 @@ def load_saved_faiss_index(path, updated_at=None):
 def load_saved_chunks(path, reload_token=None):
     if os.path.exists(path):
         with open(path, 'r', encoding='latin-1') as f:
-            return [line.strip() for line in f]
+            return [desanitize(line.strip()) for line in f]
     else:
         return []
 
 faiss_index_file_path = "/app/data/faiss_pq.index"
-chunks_file_path = "/app/data/chunks_reduced.txt"
+chunks_file_path = "/app/data/saved_chunks.txt"
+chunk_sources_file_path = "/app/data/saved_chunks_sources.txt"
 model = None
 index = None
 chunks = []
+chunks_sources = []
 new_chunks = []
 # Docker Volume Paths
 saved_faiss_index_file_path = "/data/faiss_index_newest.index"
 saved_chunks_file_path = "/data/chunks_newest.txt"
+saved_chunk_sources_file_path = "/data/chunks_sources_newest.txt"
 
 # Then assign them to variables
 model = load_model()
@@ -315,13 +324,15 @@ model = load_model()
 if os.path.exists(saved_faiss_index_file_path) and os.path.exists(saved_chunks_file_path):
     index = load_saved_faiss_index(saved_faiss_index_file_path)
     chunks = load_saved_chunks(saved_chunks_file_path)
+    chunks_sources = load_saved_chunks(saved_chunk_sources_file_path)
 else:
     index = load_faiss_index(faiss_index_file_path)
     chunks = load_chunks(chunks_file_path)
+    chunks_sources = load_chunks(chunk_sources_file_path)
 
 
 def create_chunks(output_file_path="/data/papers_output.json"):
-    global new_chunks
+    global new_chunks, chunks_sources, PAPER_HASHES
     create_chunks = []
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=50)
 
@@ -335,19 +346,18 @@ def create_chunks(output_file_path="/data/papers_output.json"):
         if PAPER_HASHES.get(uid) == current_hash:
             continue  # Skip unchanged papers
 
-        PAPER_HASHES[uid] = current_hash  # Mark this paper as updated
+        PAPER_HASHES[uid] = current_hash  # Track updated paper
 
+        # Dataset–Model Pairs
         datasets = row.get('dataset_names', [])
         models = row.get('best_model_names', [])
         dataset_links = row.get('dataset_links', [])
-
-        # Dataset–Model Pairs (tagged with SOURCE)
         for i in range(min(len(datasets), len(models))):
             dataset_text = f"Dataset: {datasets[i]}, Best Model: {models[i]}"
             if i < len(dataset_links):
                 dataset_text += f", Dataset Link: {dataset_links[i]}"
-            for segment in text_splitter.split_text(dataset_text):
-                new_chunks.append(f"{segment.strip()} ||| SOURCE: {uid}")
+            new_chunks.append(dataset_text)
+            chunks_sources.append(uid)
 
         # Main Metadata
         title = row.get('title') or ""
@@ -360,8 +370,9 @@ def create_chunks(output_file_path="/data/papers_output.json"):
             f"Authors: {', '.join(row.get('authors', []))}",
             f"Artefacts: {', '.join(row.get('artefact-information', []))}"
         ]))
-        for segment in text_splitter.split_text(main_text):
-            new_chunks.append(f"{segment.strip()} ||| SOURCE: {uid}")
+        main_text_split = text_splitter.split_text(main_text)
+        new_chunks.extend(main_text_split)
+        chunks_sources.extend([uid] * len(main_text_split))
 
         # Paper List Entries
         paper_titles = row.get('paper_list_titles', [])
@@ -370,7 +381,6 @@ def create_chunks(output_file_path="/data/papers_output.json"):
         paper_dates = row.get('paper_list_dates', [])
         paper_links = row.get('paper_list_title_links', [])
         author_links = row.get('paper_list_author_links', [])
-
         for i in range(len(paper_titles)):
             paper_text = " ".join(filter(None, [
                 f"Paper Title: {paper_titles[i]}",
@@ -380,22 +390,37 @@ def create_chunks(output_file_path="/data/papers_output.json"):
                 f"Author Links: {author_links[i]}" if i < len(author_links) else "",
                 f"Date: {paper_dates[i]}" if i < len(paper_dates) else ""
             ]))
-            for segment in text_splitter.split_text(paper_text):
-                new_chunks.append(f"{segment.strip()} ||| SOURCE: {uid}")
+            paper_text_split = text_splitter.split_text(paper_text)
+            new_chunks.extend(paper_text_split)
+            chunks_sources.extend([uid] * len(paper_text_split))
 
     # Load existing chunks
     existing_chunks = []
-    if os.path.exists("/data/chunks.txt"):
-        with open("/data/chunks.txt", 'r', encoding='latin-1') as f:
-            existing_chunks = [line.strip() for line in f if line.strip()]
+    if os.path.exists(saved_chunks_file_path):
+        existing_chunks = load_chunks(saved_chunks_file_path)
+
+    # Load existing chunks
+    existing_chunks_sources = []
+    if os.path.exists(saved_chunk_sources_file_path):
+        existing_chunks_sources = load_chunks(saved_chunk_sources_file_path)
 
     if new_chunks != []:
         all_chunks = existing_chunks + new_chunks
         create_chunks = all_chunks
 
-        with open(saved_chunks_file_path, 'w') as f:
-            for chunk in all_chunks:
-                f.write(chunk + '\n')
+        all_chunks_source = chunks_sources + existing_chunks_sources
+
+        # When saving BOTH files
+        with open(saved_chunks_file_path, 'w') as f_chunks, \
+            open(saved_chunk_sources_file_path, 'w') as f_sources:
+            
+            for chunk, source in zip(all_chunks, all_chunks_source):
+                # Clean both entries
+                safe_chunk = sanitize(chunk)
+                safe_source = sanitize(source)
+                
+                f_chunks.write(f"{safe_chunk}\n")
+                f_sources.write(f"{safe_source}\n")
     else:
         print("No new chunks to add.")
 
@@ -406,10 +431,12 @@ def create_chunks(output_file_path="/data/papers_output.json"):
     return create_chunks
 
 def create_compressed_vector_database(temp_chunks):
-    global new_chunks, saved_faiss_index_file_path, saved_chunks_file_path, index, chunks
+    global new_chunks, saved_faiss_index_file_path, saved_chunks_file_path
 
     if new_chunks == []:
         return
+    
+    model = load_model()
 
     # Compute embeddings
     embeddings = model.encode(temp_chunks).astype('float32')
@@ -427,13 +454,17 @@ def create_compressed_vector_database(temp_chunks):
     # Save compressed index
     faiss.write_index(pq_index, saved_faiss_index_file_path)
 
+    # Refresh the index from disk (forcing cache update)
+    load_saved_faiss_index(saved_faiss_index_file_path, updated_at=time.time())
+    load_saved_chunks(saved_chunks_file_path, reload_token=str(time.time()))
+
 
 def create_vector_database(temp_chunks):
     """
     Rebuild the FAISS index from new chunks and save it to disk.
     Then refresh both the cached and session_state versions of the index and chunks.
     """
-    global new_chunks, saved_faiss_index_file_path, saved_chunks_file_path, index, chunks
+    global new_chunks, saved_faiss_index_file_path, saved_chunks_file_path
     
     if new_chunks == []:
         return
@@ -502,69 +533,95 @@ def check_rate_limit():
         return False, "You've reached the limit of 10 questions per minute because the server has limited resources. Please try again in 3 minutes."
     return True, None
 
-def extract_source_url(chunk):
-    # Extract source URL from tagged chunk
-    if "||| SOURCE:" in chunk:
-        return chunk.split("||| SOURCE:")[1].strip()
-    return "Unknown"
-
 def retrieve_similar_sentences(query_sentence, k):
+    """Retrieve top-k similar sentences from the corpus with their sources."""
     query_embedding = model.encode(query_sentence).astype('float32').reshape(1, -1)
     distances, indices = index.search(query_embedding, k)
     
-    raw_chunks = [chunks[i] for i in indices[0]]
-    return raw_chunks, distances[0].tolist()
+    # Use indices[0][i] to get both chunk and source
+    similar_sentences = [(chunks[indices[0][i]], chunks_sources[indices[0][i]]) 
+                         for i in range(min(k, len(indices[0])))]
+    
+    return similar_sentences, distances[0].tolist()
 
+def find_url_for_sentence(pairs, sentence):
+    for s, url in pairs:
+        if s.strip() == sentence.strip():
+            return url
+    return "<unknown>"
 
-def rerank_sentences(query, raw_chunks):
+def get_url_from_similar(similar_sentences, target_sentence):
+    """Get first unique URL by matching normalized sentence text."""
+    import re
+    seen_urls = set()
+    target_clean = re.sub(r'^\d+\.\s*', '', target_sentence.strip())
+    
+    for sent, url in similar_sentences:
+        sent_clean = re.sub(r'^\d+\.\s*', '', sent.strip())
+        if sent_clean == target_clean and url not in seen_urls:
+            seen_urls.add(url)
+            return url  # Return first unique match
+            
+    return "<unknown>"
+
+def rerank_sentences(query, sentence_url_pairs):
     """
-    Rerank chunks based on relevance to the query.
-    Returns a list of (cleaned_sentence, score, source_url).
+    Re-rank a list of (sentence, url) pairs by LLM relevance to the query.
+
+    Args:
+        query (str): The user's research query
+        sentence_url_pairs (List[Tuple[str, str]]): Chunk text and associated URL
+
+    Returns:
+        List[Tuple[Tuple[str, str], float]]: [((sentence, url), score), ...]
     """
-    sentences = [chunk.split("||| SOURCE:")[0].strip() for chunk in raw_chunks]
+    # Extract just the sentence texts
+    sentences = [s for s, _ in sentence_url_pairs]
 
     rerank_prompt = (
-        "You are an AI tasked with ranking sentences based on their relevance to a query. "
-        "For each sentence, provide a relevance score between 0 and 1 (where 1 is highly relevant) "
-        "and a brief explanation. Return the results in this format exactly, do not bold the words:\n"
-        "Sentence: <sentence>\nScore: <score>\nExplanation: <explanation>\n\n"
-        "Query: '{}'\n\n"
-        "Sentences to rank:\n{}"
-    ).format(query, "\n".join([f"{i+1}. {s}" for i, s in enumerate(sentences)]))
+        "You are an AI assistant ranking sentences based on how relevant they are to the given query. "
+        "Assign each sentence a relevance score from 0 (irrelevant) to 1 (highly relevant). "
+        "Provide results in exactly this format:\n"
+        "Sentence: <sentence>\nScore: <score>\nExplanation: <short explanation>\n\n"
+        f"Query: {query}\n\n"
+        f"Sentences:\n" + "\n".join([f"{i+1}. {s}" for i, s in enumerate(sentences)])
+    )
 
     max_retries = 3
-    retry_delay = 60  # Wait 60 seconds to ensure TPM limit resets
+    retry_delay = 60  # seconds
 
     for attempt in range(max_retries):
         try:
             response = chat.invoke([HumanMessage(content=rerank_prompt)])
-            reranked = []
-            
-            # Parse LLM response
             lines = response.content.strip().split("\n")
+            reranked = []
+
+            # Parse response: every 3 lines = Sentence, Score, Explanation
             for i in range(0, len(lines), 3):
                 try:
-                    sentence = lines[i].replace("Sentence: ", "").strip()
+                    sentence_line = lines[i].replace("Sentence: ", "").strip()
+                    # Remove leading numbering (e.g., "1. ", "2. ")
+                    import re
+                    sentence = re.sub(r'^\d+\.\s*', '', sentence_line)
                     score = float(lines[i+1].replace("Score: ", "").strip())
-                    reranked.append((sentence, score))
+                    url = find_url_for_sentence(sentence_url_pairs, sentence)
+                    reranked.append(((sentence_line, url), score))
                 except (IndexError, ValueError):
                     continue
-            
-            # Sort by score in descending order
+
+            # Sort by score, descending
             reranked.sort(key=lambda x: x[1], reverse=True)
             return reranked
 
         except Exception as e:
-            if "Error code: 413" in str(e) and "rate_limit_exceeded" in str(e):
-                if attempt < max_retries - 1:
-                    st.warning(f"Rate limit exceeded. Waiting {retry_delay} seconds before retrying... (Attempt {attempt + 1}/{max_retries})")
-                    time.sleep(retry_delay)
-                    continue
-            # If not a rate limit error or max retries reached, raise the exception
+            if "rate_limit" in str(e).lower() and attempt < max_retries - 1:
+                st.warning(f"Rate limit hit. Retrying in {retry_delay} seconds... (Attempt {attempt+1})")
+                time.sleep(retry_delay)
+                continue
             raise e
-    
-    # If all retries fail, return an empty list to avoid breaking downstream logic
+
     return []
+
 
 # 7. Display Chat Messages
 for message in st.session_state.messages:
@@ -596,39 +653,54 @@ if user_input:
     else:
         st.session_state.question_times.append(time.time())
         st.session_state.messages.append(HumanMessage(content=user_input))
-
         with st.spinner("Thinking..."):
-            # Start timer for response generation
             start_time = time.time()
-            
-            # Retrieve and re-rank for user input
+            top_sentence = ""
+            top_url = ""
+
+            # Retrieve and re-rank
             similar_sentences, _ = retrieve_similar_sentences(user_input, k=10)
+
             if not similar_sentences:
                 context = "No context available."
-            else:
+                source_url = "<unknown>"
+            else:    
                 reranked = rerank_sentences(user_input, similar_sentences)
                 threshold = 0.3
 
-                # Check if reranked is not empty and if the score is low
                 if reranked and reranked[0][1] < threshold:
                     context = "Not enough context available."
+                    source_url = "<unknown>"
+                elif reranked:
+                        top_sentence = reranked[0][0][0]
+                        source_url = get_url_from_similar(similar_sentences, top_sentence)
+                        context = top_sentence
                 else:
-                    context = reranked[0][0] if reranked else "No context available."
-            
+                    context = "No context available."
+                    source_url = "<unknown>"
+
             messages_to_send = st.session_state.messages + [
                 SystemMessage(content=f"Context: {context}\n\nYou MUST respond with a concise answer limited to one paragraph.")
             ]
             response = chat.invoke(messages_to_send)
-            ai_message = AIMessage(content=response.content)
-            
-            # End timer and calculate response time
+            ai_message_content = response.content
+
+            # Replace the existing citation code with:
+            if source_url not in ["<unknown>", "", None]:
+                # Check if response already contains a reference
+                if "Reference: [Source Link]" not in ai_message_content:
+                    ai_message_content += f"\n\nReference: [Source Link]({source_url})"
+            else:
+                # Remove any existing invalid references from model response
+                ai_message_content = ai_message_content.split("Reference: Source Link")[0].strip()
+
+            # Response time
             end_time = time.time()
             response_time = end_time - start_time
-            
-            # Store the response time for this message
             st.session_state.response_times[response.content] = response_time
-            
-            st.session_state.messages.append(ai_message)
+
+            # Save AI message
+            st.session_state.messages.append(AIMessage(content=ai_message_content))
             # Commented out to remove rating buttons
             # st.session_state.last_ai_response = ai_message.content  # Save latest AI response for rating
         st.rerun()
