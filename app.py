@@ -346,12 +346,13 @@ def create_chunks(output_file_path="/data/papers_output.json"):
         if PAPER_HASHES.get(uid) == current_hash:
             continue  # Skip unchanged papers
 
-        PAPER_HASHES[uid] = current_hash  # Track updated paper
+        PAPER_HASHES[uid] = current_hash  # Mark this paper as updated
 
-        # Dataset–Model Pairs
         datasets = row.get('dataset_names', [])
         models = row.get('best_model_names', [])
         dataset_links = row.get('dataset_links', [])
+
+        # Dataset–Model Pairs (tagged with SOURCE)
         for i in range(min(len(datasets), len(models))):
             dataset_text = f"Dataset: {datasets[i]}, Best Model: {models[i]}"
             if i < len(dataset_links):
@@ -381,6 +382,7 @@ def create_chunks(output_file_path="/data/papers_output.json"):
         paper_dates = row.get('paper_list_dates', [])
         paper_links = row.get('paper_list_title_links', [])
         author_links = row.get('paper_list_author_links', [])
+
         for i in range(len(paper_titles)):
             paper_text = " ".join(filter(None, [
                 f"Paper Title: {paper_titles[i]}",
@@ -533,6 +535,12 @@ def check_rate_limit():
         return False, "You've reached the limit of 10 questions per minute because the server has limited resources. Please try again in 3 minutes."
     return True, None
 
+def extract_source_url(chunk):
+    # Extract source URL from tagged chunk
+    if "||| SOURCE:" in chunk:
+        return chunk.split("||| SOURCE:")[1].strip()
+    return "Unknown"
+
 def retrieve_similar_sentences(query_sentence, k):
     """Retrieve top-k similar sentences from the corpus with their sources."""
     query_embedding = model.encode(query_sentence).astype('float32').reshape(1, -1)
@@ -653,6 +661,7 @@ if user_input:
     else:
         st.session_state.question_times.append(time.time())
         st.session_state.messages.append(HumanMessage(content=user_input))
+
         with st.spinner("Thinking..."):
             start_time = time.time()
             top_sentence = ""
