@@ -1,6 +1,7 @@
 import hashlib
 import json
 import subprocess
+import tempfile
 import streamlit as st
 import numpy as np
 import pandas as pd
@@ -278,6 +279,34 @@ def sanitize(text):
 def desanitize(text):
     return text.replace(' [NL] ', '\n').replace(' [CR] ', '\r')
 
+# ------------------- Add Version File Handling -------------------
+VERSION_FILE = "/data/version.txt"
+
+def update_version_file():
+    """Update the version file with current timestamp to invalidate caches."""
+    with open(VERSION_FILE, "w") as f:
+        f.write(str(time.time()))
+
+# Initialize version file if it doesn't exist
+if not os.path.exists(VERSION_FILE):
+    update_version_file()
+
+def check_and_reload_data():
+    """Check if data version has changed and reload if needed"""
+    current_version = open(VERSION_FILE).read().strip()
+    
+    if current_version != st.session_state.current_data_version:
+        # Clear existing cache entries
+        load_faiss_wrapper.clear()
+        load_chunks_wrapper.clear()
+        load_sources_wrapper.clear()
+        
+        # Reload data
+        st.session_state.faiss_index = load_faiss_wrapper(current_version)
+        st.session_state.chunks = load_chunks_wrapper(current_version)
+        st.session_state.chunks_sources = load_sources_wrapper(current_version)
+        st.session_state.current_data_version = current_version
+
 @st.cache_resource(show_spinner=False)
 def load_model():
     return SentenceTransformer('all-MiniLM-L6-v2')
@@ -291,19 +320,23 @@ def load_faiss_index(index_file_path, updated_at=None):
 
 # Load saved data from Docker Volume
 @st.cache_resource(show_spinner=False)
-def load_saved_faiss_index(path, updated_at=None):
-    if os.path.exists(path):
-        return faiss.read_index(path)
-    return None
+def load_faiss_wrapper(_version: str):
+    """Wrapper with version-based cache invalidation"""
+    return faiss.read_index(saved_faiss_index_file_path)
 
-# Load saved data from Docker Volume
 @st.cache_data(show_spinner=False)
-def load_saved_chunks(path, reload_token=None):
-    if os.path.exists(path):
-        with open(path, 'r', encoding='latin-1') as f:
-            return [desanitize(line.strip()) for line in f]
-    else:
-        return []
+def load_chunks_wrapper(_version: str):
+    """Wrapper with version-based cache invalidation"""
+    with open(saved_chunks_file_path, 'r', encoding='latin-1') as f:
+        return [desanitize(line.strip()) for line in f]
+
+@st.cache_data(show_spinner=False)
+def load_sources_wrapper(_version: str):
+    """Wrapper with version-based cache invalidation"""
+    with open(saved_chunk_sources_file_path, 'r', encoding='latin-1') as f:
+        return [desanitize(line.strip()) for line in f]
+
+
 
 faiss_index_file_path = "/app/data/faiss_pq.index"
 chunks_file_path = "/app/data/saved_chunks.txt"
@@ -321,19 +354,36 @@ saved_chunk_sources_file_path = "/data/chunks_sources_newest.txt"
 # Then assign them to variables
 model = load_model()
 
+# Initialize version file if it doesn't exist
+if not os.path.exists(VERSION_FILE):
+    update_version_file()
+    # Load current version
+    current_version = open(VERSION_FILE).read().strip()
+
 if os.path.exists(saved_faiss_index_file_path) and os.path.exists(saved_chunks_file_path):
-    index = load_saved_faiss_index(saved_faiss_index_file_path)
-    chunks = load_saved_chunks(saved_chunks_file_path)
-    chunks_sources = load_saved_chunks(saved_chunk_sources_file_path)
+    # Check if we need to load initial data
+    if "data_initialized" not in st.session_state:
+        # Load current version
+        current_version = open(VERSION_FILE).read().strip()
+
+
+        # Load all components using versioned wrappers
+        st.session_state.faiss_index = load_faiss_wrapper(current_version)
+        st.session_state.chunks = load_chunks_wrapper(current_version)
+        st.session_state.chunks_sources = load_sources_wrapper(current_version)
+        st.session_state.current_data_version = current_version
+        st.session_state.data_initialized = True
 else:
-    index = load_faiss_index(faiss_index_file_path)
-    chunks = load_chunks(chunks_file_path)
-    chunks_sources = load_chunks(chunk_sources_file_path)
+    st.session_state.faiss_index = load_faiss_index(faiss_index_file_path)
+    st.session_state.chunks = load_chunks(chunks_file_path)
+    st.session_state.chunks_sources = load_chunks(chunk_sources_file_path)
 
 
 def create_chunks(output_file_path="/data/papers_output.json"):
-    global new_chunks, chunks_sources, PAPER_HASHES
+    global new_chunks, PAPER_HASHES
     create_chunks = []
+    new_chunks_sources = []
+    create_chunks_sources = []
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=50)
 
     df = pd.read_json(output_file_path)
@@ -358,7 +408,7 @@ def create_chunks(output_file_path="/data/papers_output.json"):
             if i < len(dataset_links):
                 dataset_text += f", Dataset Link: {dataset_links[i]}"
             new_chunks.append(dataset_text)
-            chunks_sources.append(uid)
+            new_chunks_sources.append(uid)
 
         # Main Metadata
         title = row.get('title') or ""
@@ -373,7 +423,7 @@ def create_chunks(output_file_path="/data/papers_output.json"):
         ]))
         main_text_split = text_splitter.split_text(main_text)
         new_chunks.extend(main_text_split)
-        chunks_sources.extend([uid] * len(main_text_split))
+        new_chunks_sources.extend([uid] * len(main_text_split))
 
         # Paper List Entries
         paper_titles = row.get('paper_list_titles', [])
@@ -394,7 +444,7 @@ def create_chunks(output_file_path="/data/papers_output.json"):
             ]))
             paper_text_split = text_splitter.split_text(paper_text)
             new_chunks.extend(paper_text_split)
-            chunks_sources.extend([uid] * len(paper_text_split))
+            new_chunks_sources.extend([uid] * len(paper_text_split))
 
     # Load existing chunks
     existing_chunks = []
@@ -410,19 +460,8 @@ def create_chunks(output_file_path="/data/papers_output.json"):
         all_chunks = existing_chunks + new_chunks
         create_chunks = all_chunks
 
-        all_chunks_source = chunks_sources + existing_chunks_sources
-
-        # When saving BOTH files
-        with open(saved_chunks_file_path, 'w') as f_chunks, \
-            open(saved_chunk_sources_file_path, 'w') as f_sources:
-            
-            for chunk, source in zip(all_chunks, all_chunks_source):
-                # Clean both entries
-                safe_chunk = sanitize(chunk)
-                safe_source = sanitize(source)
-                
-                f_chunks.write(f"{safe_chunk}\n")
-                f_sources.write(f"{safe_source}\n")
+        all_chunks_source = new_chunks_sources + existing_chunks_sources
+        create_chunks_sources = all_chunks_source
     else:
         print("No new chunks to add.")
 
@@ -430,64 +469,114 @@ def create_chunks(output_file_path="/data/papers_output.json"):
         # Update paper hashes
         with open(PAPER_HASHES_PATH, "w") as f:
             json.dump(PAPER_HASHES, f, indent=2)
-    return create_chunks
+    return (create_chunks, create_chunks_sources)
 
 def create_compressed_vector_database(temp_chunks):
-    global new_chunks, saved_faiss_index_file_path, saved_chunks_file_path
-
-    if new_chunks == []:
-        return
+    global new_chunks, saved_faiss_index_file_path, saved_chunks_file_path, saved_chunk_sources_file_path
     
+    if not new_chunks:
+        return
+
     model = load_model()
+    embeddings = model.encode(temp_chunks[0]).astype('float32')
+    d = embeddings.shape[1]
 
-    # Compute embeddings
-    embeddings = model.encode(temp_chunks).astype('float32')
-    d = embeddings.shape[1]  # embedding dimension
+    # Use the Docker volume path explicitly
+    temp_dir = "/data/temp"  # Dedicated temp subdirectory in volume
+    os.makedirs(temp_dir, exist_ok=True)
 
-    # Set compression params
-    m = 32         # number of sub-vectors (typical: 8, 16, 32)
-    nbits = 8      # bits per sub-vector (8 = 256 centroids)
+    try:
+        # Create temp files directly in the Docker volume
+        with tempfile.NamedTemporaryFile(dir=temp_dir, delete=False, suffix=".index") as tmp_index, \
+             tempfile.NamedTemporaryFile(dir=temp_dir, delete=False, suffix=".chunks") as tmp_chunks, \
+             tempfile.NamedTemporaryFile(dir=temp_dir, delete=False, suffix=".sources") as tmp_sources:
 
-    # Build PQ index
-    pq_index = faiss.IndexPQ(d, m, nbits)
-    pq_index.train(embeddings)
-    pq_index.add(embeddings)
+            # 1. Create compressed index
+            pq_index = faiss.IndexPQ(d, 32, 8)  # 32 subspaces, 8 bits
+            pq_index.train(embeddings)
+            pq_index.add(embeddings)
+            faiss.write_index(pq_index, tmp_index.name)
 
-    # Save compressed index
-    faiss.write_index(pq_index, saved_faiss_index_file_path)
+            # 2. Write chunks and sources
+            for chunk in temp_chunks[0]:
+                tmp_chunks.write(f"{sanitize(chunk)}\n".encode('utf-8'))
+            for source in temp_chunks[1]:
+                tmp_sources.write(f"{sanitize(source)}\n".encode('utf-8'))
 
-    # Refresh the index from disk (forcing cache update)
-    load_saved_faiss_index(saved_faiss_index_file_path, updated_at=time.time())
-    load_saved_chunks(saved_chunks_file_path, reload_token=str(time.time()))
+            # Flush all writes before moving files
+            tmp_index.flush()
+            tmp_chunks.flush()
+            tmp_sources.flush()
+
+            # Atomic file moves (same filesystem required)
+            os.replace(tmp_index.name, saved_faiss_index_file_path)
+            os.replace(tmp_chunks.name, saved_chunks_file_path)
+            os.replace(tmp_sources.name, saved_chunk_sources_file_path)
+
+            # Update version for cache invalidation
+            update_version_file()
+
+    finally:
+        # Cleanup: Remove any remaining temp files
+        for f in [tmp_index, tmp_chunks, tmp_sources]:
+            try:
+                if f and os.path.exists(f.name):
+                    os.remove(f.name)
+            except Exception as e:
+                print(f"Error cleaning up temp file {f.name}: {str(e)}")
 
 
 def create_vector_database(temp_chunks):
-    """
-    Rebuild the FAISS index from new chunks and save it to disk.
-    Then refresh both the cached and session_state versions of the index and chunks.
-    """
-    global new_chunks, saved_faiss_index_file_path, saved_chunks_file_path
+    global new_chunks, saved_faiss_index_file_path, saved_chunks_file_path, saved_chunk_sources_file_path
     
-    if new_chunks == []:
+    if not new_chunks:
         return
 
-    # Reuse the cached model
     model = load_model()
+    embeddings = model.encode(temp_chunks[0]).astype('float32')
 
-    # Encode new chunks
-    embeddings = model.encode(temp_chunks).astype('float32')
+    # Use Docker volume path for temp files
+    temp_dir = "/data/temp"
+    os.makedirs(temp_dir, exist_ok=True)
 
-    # Create FAISS index
-    temp_index = faiss.IndexFlatL2(embeddings.shape[1])
-    temp_index.add(embeddings)
+    try:
+        # Create temp files directly in Docker volume
+        with tempfile.NamedTemporaryFile(dir=temp_dir, delete=False, suffix=".index") as tmp_index, \
+             tempfile.NamedTemporaryFile(dir=temp_dir, delete=False, suffix=".chunks") as tmp_chunks, \
+             tempfile.NamedTemporaryFile(dir=temp_dir, delete=False, suffix=".sources") as tmp_sources:
 
-    # Save new index to disk
-    faiss.write_index(temp_index, saved_faiss_index_file_path)
+            # 1. Create flat index
+            flat_index = faiss.IndexFlatL2(embeddings.shape[1])
+            flat_index.add(embeddings)
+            faiss.write_index(flat_index, tmp_index.name)
 
+            # 2. Write chunks and sources
+            for chunk in temp_chunks[0]:
+                tmp_chunks.write(f"{sanitize(chunk)}\n".encode('utf-8'))
+            for source in temp_chunks[1]:
+                tmp_sources.write(f"{sanitize(source)}\n".encode('utf-8'))
 
-    # Refresh the index from disk (forcing cache update)
-    load_saved_faiss_index(saved_faiss_index_file_path, updated_at=time.time())
-    load_saved_chunks(saved_chunks_file_path, reload_token=str(time.time()))
+            # Flush writes before moving files
+            tmp_index.flush()
+            tmp_chunks.flush()
+            tmp_sources.flush()
+
+            # Atomic file replacement
+            os.replace(tmp_index.name, saved_faiss_index_file_path)
+            os.replace(tmp_chunks.name, saved_chunks_file_path)
+            os.replace(tmp_sources.name, saved_chunk_sources_file_path)
+
+            # Update version for cache invalidation
+            update_version_file()
+
+    finally:
+        # Cleanup any remaining temp files
+        for f in [tmp_index, tmp_chunks, tmp_sources]:
+            try:
+                if f and os.path.exists(f.name):
+                    os.remove(f.name)
+            except Exception as e:
+                print(f"Error cleaning up temp file {f.name}: {str(e)}")
 
 def run_scraper():
     """Run the Scrapy spider via subprocess."""
@@ -535,18 +624,20 @@ def check_rate_limit():
         return False, "You've reached the limit of 10 questions per minute because the server has limited resources. Please try again in 3 minutes."
     return True, None
 
-def extract_source_url(chunk):
-    # Extract source URL from tagged chunk
-    if "||| SOURCE:" in chunk:
-        return chunk.split("||| SOURCE:")[1].strip()
-    return "Unknown"
-
 def retrieve_similar_sentences(query_sentence, k):
-    """Retrieve top-k similar sentences from the corpus with their sources."""
+    """Retrieve top-k similar sentences with version check."""
+    if "data_initialized" in st.session_state: 
+        # Check for data updates
+        check_and_reload_data()
+        
+    # Get from session state
+    index = st.session_state.faiss_index
+    chunks = st.session_state.chunks
+    chunks_sources = st.session_state.chunks_sources
+    
     query_embedding = model.encode(query_sentence).astype('float32').reshape(1, -1)
     distances, indices = index.search(query_embedding, k)
     
-    # Use indices[0][i] to get both chunk and source
     similar_sentences = [(chunks[indices[0][i]], chunks_sources[indices[0][i]]) 
                          for i in range(min(k, len(indices[0])))]
     
@@ -587,13 +678,13 @@ def rerank_sentences(query, sentence_url_pairs):
     sentences = [s for s, _ in sentence_url_pairs]
 
     rerank_prompt = (
-        "You are an AI assistant ranking sentences based on how relevant they are to the given query. "
-        "Assign each sentence a relevance score from 0 (irrelevant) to 1 (highly relevant). "
-        "Provide results in exactly this format:\n"
-        "Sentence: <sentence>\nScore: <score>\nExplanation: <short explanation>\n\n"
-        f"Query: {query}\n\n"
-        f"Sentences:\n" + "\n".join([f"{i+1}. {s}" for i, s in enumerate(sentences)])
-    )
+        "You are an AI tasked with ranking sentences based on their relevance to a query. "
+        "For each sentence, provide a relevance score between 0 and 1 (where 1 is highly relevant) "
+        "and a brief explanation. Return the results in this format exactly, do not bold the words:\n"
+        "Sentence: <sentence>\nScore: <score>\nExplanation: <explanation>\n\n"
+        "Query: '{}'\n\n"
+        "Sentences to rank:\n{}"
+    ).format(query, "\n".join([f"{i+1}. {s}" for i, s in enumerate(sentences)]))
 
     max_retries = 3
     retry_delay = 60  # seconds
