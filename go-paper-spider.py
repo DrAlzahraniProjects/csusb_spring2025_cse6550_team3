@@ -1,6 +1,7 @@
 from scrapy.crawler import CrawlerProcess
 from scrapy.utils.project import get_project_settings
 from mycrawler.spiders.paperswithcode_spider import PaperSpider
+import os
 
 # Path (mapped to Docker volume)
 papers_output_file_path = "/data/papers_output.json"
@@ -15,7 +16,7 @@ def run_paper_spider():
         'FEED_FORMAT': 'json',
         'FEED_EXPORT_INDENT': 4,
         'FEED_EXPORT_ENCODING': 'utf-8',
-        'FEED_OVERWRITE': False,
+        'FEED_OVERWRITE': True, 
         'FEED_STORE_EMPTY': False,
         'FEED_EXPORT_FIELDS': [
             "url", "title", "abstract", "date", "authors",
@@ -29,16 +30,15 @@ def run_paper_spider():
             'json': 'scrapy.exporters.JsonItemExporter',
         },
 
-        # Throttling / performance settings
-        'CONCURRENT_REQUESTS': 2,                  # Super low concurrency
-        'CONCURRENT_REQUESTS_PER_DOMAIN': 1,        # Only 1 request at a time per domain
-        'DOWNLOAD_DELAY': 3,                        # Wait 3 seconds between requests
-        'RANDOMIZE_DOWNLOAD_DELAY': True,           # Add randomness to delay
-        'AUTOTHROTTLE_ENABLED': True,               # AutoThrottle enabled
-        'AUTOTHROTTLE_START_DELAY': 5,              # Start with 5 sec delay
-        'AUTOTHROTTLE_MAX_DELAY': 20,               # Up to 20 sec if server slow
-        'AUTOTHROTTLE_TARGET_CONCURRENCY': 0.5,     # Try to keep 0.5 active requests at a time
-        'FEED_EXPORT_BATCH_ITEM_COUNT': 20,         # Write every 20 items to disk
+        # Politeness settings
+        'CONCURRENT_REQUESTS': 4,        
+        'CONCURRENT_REQUESTS_PER_DOMAIN': 2,  
+        'DOWNLOAD_DELAY': 1,              
+        'RANDOMIZE_DOWNLOAD_DELAY': True,   
+        'AUTOTHROTTLE_ENABLED': True,       
+        'AUTOTHROTTLE_START_DELAY': 2,     
+        'AUTOTHROTTLE_MAX_DELAY': 10,       
+        'AUTOTHROTTLE_TARGET_CONCURRENCY': 1.0,
     })
 
     process = CrawlerProcess(settings)
@@ -46,8 +46,11 @@ def run_paper_spider():
     process.start()
 
 def main():
+    # Ensure the output file is cleared before running
+    if os.path.exists(papers_output_file_path):
+        os.remove(papers_output_file_path)
     print("Starting the paper scraping process...")
-    # run_paper_spider()
+    run_paper_spider()
     print("Scraping paper complete...")
 
 if __name__ == "__main__":

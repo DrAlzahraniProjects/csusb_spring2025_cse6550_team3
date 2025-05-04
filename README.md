@@ -80,4 +80,4 @@ Open browser at  https://sec.cse.csusb.edu/team3s25/
 
 We have integrated a Google Colab notebook for easy access and execution.
 
-[Open in Colab](https://colab.research.google.com/drive/1OICG-s8bcIehEFRvmFZXEZantEJLWayz?usp=sharing)
+[Open in Colab](https://colab.research.google.com/drive/1zHI6aP7hxqrn8czuaLnUEua1A_w9l--p?usp=sharing)

@@ -52,4 +52,3 @@ RUN echo "ProxyPass /team3s25 http://localhost:2503/team3s25" >> /etc/apache2/si
 RUN a2enmod proxy proxy_http rewrite
 
 CMD ["python", "app.py"]
-
