@@ -15,6 +15,17 @@ import time
 import requests
 import threading
 
+
+# Start Apache in background
+def start_apache():
+    subprocess.run(["apache2ctl", "start"])
+
+# Start these services in threads
+threading.Thread(target=start_apache).start()
+
+# Then run Streamlit app
+os.system("streamlit run app.py --server.port=2503 --server.baseUrlPath=/team3s25")
+
 # ------------------- Custom CSS for Light/Dark Mode and Unified Button Styling -------------------
 st.markdown(
     """
