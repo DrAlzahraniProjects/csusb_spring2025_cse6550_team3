@@ -1,5 +1,6 @@
 import hashlib
 import json
+import re
 import subprocess
 import tempfile
 import streamlit as st
@@ -463,7 +464,7 @@ def create_chunks(output_file_path="/data/papers_output.json"):
     if os.path.exists(saved_chunks_file_path):
         existing_chunks = load_chunks(saved_chunks_file_path)
 
-    # Load existing chunks
+    # Load existing chunks sources
     existing_chunks_sources = []
     if os.path.exists(saved_chunk_sources_file_path):
         existing_chunks_sources = load_chunks(saved_chunk_sources_file_path)
@@ -661,19 +662,6 @@ def find_url_for_sentence(pairs, sentence):
             return url
     return "<unknown>"
 
-def get_url_from_similar(similar_sentences, target_sentence):
-    """Get first unique URL by matching normalized sentence text."""
-    import re
-    seen_urls = set()
-    target_clean = re.sub(r'^\d+\.\s*', '', target_sentence.strip())
-    
-    for sent, url in similar_sentences:
-        sent_clean = re.sub(r'^\d+\.\s*', '', sent.strip())
-        if sent_clean == target_clean and url not in seen_urls:
-            seen_urls.add(url)
-            return url  # Return first unique match
-            
-    return "<unknown>"
 
 def rerank_sentences(query, sentence_url_pairs):
     """
@@ -688,14 +676,16 @@ def rerank_sentences(query, sentence_url_pairs):
     """
     # Extract just the sentence texts
     sentences = [s for s, _ in sentence_url_pairs]
-
+    
     rerank_prompt = (
         "You are an AI tasked with ranking sentences based on their relevance to a query. "
         "For each sentence, provide a relevance score between 0 and 1 (where 1 is highly relevant) "
-        "and a brief explanation. Return the results in this format exactly, do not bold the words:\n"
-        "Sentence: <sentence>\nScore: <score>\nExplanation: <explanation>\n\n"
+        "and a brief explanation. Return the results in this format exactly:\n"
+        "Sentence: <original number>. <sentence>\nScore: <score>\nExplanation: <explanation>\n\n"
+        "Important: Preserve the original numbering from the 'Sentences to rank' list. "
+        "Do not modify the sentence text. Use the exact text provided.\n\n"
         "Query: '{}'\n\n"
-        "Sentences to rank:\n{}"
+        "Sentences to rank (retain their original numbers):\n{}"
     ).format(query, "\n".join([f"{i+1}. {s}" for i, s in enumerate(sentences)]))
 
     max_retries = 3
@@ -711,16 +701,26 @@ def rerank_sentences(query, sentence_url_pairs):
             for i in range(0, len(lines), 3):
                 try:
                     sentence_line = lines[i].replace("Sentence: ", "").strip()
-                    # Remove leading numbering (e.g., "1. ", "2. ")
-                    import re
-                    sentence = re.sub(r'^\d+\.\s*', '', sentence_line)
+                    # Extract original number from the sentence line (e.g., "3. Actual sentence...")
+                    match = re.match(r'^(\d+)\.\s*(.*)', sentence_line)
+                    if match:
+                        original_number = int(match.group(1))
+                        original_index = original_number - 1  # Convert to 0-based index
+                        if 0 <= original_index < len(sentence_url_pairs):
+                            # Fetch URL directly from original list using the index
+                            original_sentence, url = sentence_url_pairs[original_index]
+                            # Optional: Verify text matches to catch prompt deviations
+                            score = float(lines[i+1].replace("Score: ", "").strip())
+                            reranked.append(((original_sentence, url), score))
+                            continue  # Skip fallback if index was valid
+                    # Fallback to text matching if number extraction fails
+                    sent_clean = re.sub(r'^\d+\.\s*', '', sentence_line)
+                    url = find_url_for_sentence(sentence_url_pairs, sent_clean)
                     score = float(lines[i+1].replace("Score: ", "").strip())
-                    url = find_url_for_sentence(sentence_url_pairs, sentence)
-                    reranked.append(((sentence_line, url), score))
-                except (IndexError, ValueError):
+                    reranked.append(((sent_clean, url), score))
+                except (IndexError, ValueError) as e:
                     continue
-
-            # Sort by score, descending
+            
             reranked.sort(key=lambda x: x[1], reverse=True)
             return reranked
 
@@ -776,8 +776,13 @@ if user_input:
             if not similar_sentences:
                 context = "No context available."
                 source_url = "<unknown>"
-            else:    
-                reranked = rerank_sentences(user_input, similar_sentences)
+            else: 
+                reranked = None
+                try:
+                    reranked = rerank_sentences(user_input, similar_sentences)
+                except Exception as e:
+                    reranked = None
+                
                 threshold = 0.3
 
                 if reranked and reranked[0][1] < threshold:
@@ -785,7 +790,7 @@ if user_input:
                     source_url = "<unknown>"
                 elif reranked:
                         top_sentence = reranked[0][0][0]
-                        source_url = get_url_from_similar(similar_sentences, top_sentence)
+                        source_url = reranked[0][0][1]
                         context = top_sentence
                 else:
                     context = "No context available."
@@ -796,15 +801,36 @@ if user_input:
             ]
             response = chat.invoke(messages_to_send)
             ai_message_content = response.content
+            
+            # List of substrings that indicate non-informative responses
+            non_informative_phrases = [
+                "I don't have enough information",
+                "I'm sorry, but I'm a research assistant",
+                "I don't have the capability",
+                "I'm not sure how to help with that",
+                "I cannot answer that",
+                "I'm not able to",
+                "The context only provides",
+                "does not contain any information",
+                "I apologize, but I'm a research assistant",
+                "I apologize, but I don't have the information",
+                "I apologize, but I'm unable to",
+                "I apologize, but I can't help with that"
+            ]
 
-            # Replace the existing citation code with:
-            if source_url not in ["<unknown>", "", None]:
-                # Check if response already contains a reference
-                if "Reference: [Source Link]" not in ai_message_content:
-                    ai_message_content += f"\n\nReference: [Source Link]({source_url})"
-            else:
-                # Remove any existing invalid references from model response
-                ai_message_content = ai_message_content.split("Reference: Source Link")[0].strip()
+            # Make check case-insensitive and match partial phrases
+            if not any(phrase.lower() in ai_message_content.lower() for phrase in non_informative_phrases):
+                if reranked:
+                    # Replace the existing citation code with:
+                    if source_url not in ["<unknown>", "", None]:
+                        # Check if response already contains a reference
+                        if "Reference: [Source Link]" not in ai_message_content:
+                            ai_message_content += f"\n\nReference: [Source Link]({source_url})"
+                    else:
+                        if "Reference: [Source Link]" not in ai_message_content:
+                            source_url = similar_sentences[0][1]
+                            ai_message_content += f"\n\nReference: [Source Link]({source_url})"
+
 
             # Response time
             end_time = time.time()
