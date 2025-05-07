@@ -149,15 +149,7 @@ st.markdown(
         border: 1px solid #f5c6cb;
         text-align: center;
     }
-    /* Response time display styling */
-    .response-time {
-        font-size: 12px;
-        color: var(--subtitle-color);
-        text-align: right;
-        margin-top: 2px;
-        margin-bottom: 10px;
-        font-style: italic;
-    }
+  
     </style>
     """,
     unsafe_allow_html=True,
@@ -264,9 +256,6 @@ if "conversation_history" not in st.session_state:
 if "question_times" not in st.session_state:
     st.session_state.question_times = []
 
-# Add response time tracking to session state
-if "response_times" not in st.session_state:
-    st.session_state.response_times = {}
 
 # 4. Layout the Main Chat Container
 st.markdown('<div class="chat-container">', unsafe_allow_html=True)
@@ -743,10 +732,6 @@ for message in st.session_state.messages:
     with st.chat_message(role):
         st.write(message.content)
         
-        # Display response time for assistant messages
-        if role == "assistant" and message.content in st.session_state.response_times:
-            response_time = st.session_state.response_times[message.content]
-            st.markdown(f"<div class='response-time'>Response time: {response_time:.2f} seconds</div>", unsafe_allow_html=True)
 
 # 8. Display AI-to-AI Conversation History
 for role, content in st.session_state.conversation_history:
@@ -766,7 +751,6 @@ if user_input:
         st.session_state.messages.append(HumanMessage(content=user_input))
 
         with st.spinner("Thinking..."):
-            start_time = time.time()
             top_sentence = ""
             top_url = ""
 
@@ -806,10 +790,6 @@ if user_input:
                 # Remove any existing invalid references from model response
                 ai_message_content = ai_message_content.split("Reference: Source Link")[0].strip()
 
-            # Response time
-            end_time = time.time()
-            response_time = end_time - start_time
-            st.session_state.response_times[response.content] = response_time
 
             # Save AI message
             st.session_state.messages.append(AIMessage(content=ai_message_content))
